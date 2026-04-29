@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: relake-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+      config:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        file-extension: yaml
+        shared-configs:
+          - data-id: relake-common.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+
+server:
+  port: 8080

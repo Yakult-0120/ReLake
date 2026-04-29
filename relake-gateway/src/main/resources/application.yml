@@ -1,0 +1,39 @@
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # -------- Auth 路由由网关自身 AuthController 处理，不在此定义 --------
+
+        # -------- 下游微服务路由 --------
+        - id: metadata-service
+          uri: lb://relake-metadata
+          predicates:
+            - Path=/api/v1/datasources/**,/api/v1/targets/**,/api/v1/schemas/**
+          filters:
+            - StripPrefix=0
+
+        - id: integration-service
+          uri: lb://relake-integration
+          predicates:
+            - Path=/api/v1/tasks/**
+          filters:
+            - StripPrefix=0
+
+        - id: executor-service
+          uri: lb://relake-executor
+          predicates:
+            - Path=/api/v1/jobs/**
+          filters:
+            - StripPrefix=0
+
+  main:
+    web-application-type: reactive
+
+relake:
+  jwt:
+    secret: ReLake-2026-Secret-Key-For-JWT-Must-Be-At-Least-256-Bits!
+    expiration: 86400000  # 24小时
