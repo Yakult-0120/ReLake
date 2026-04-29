@@ -1,0 +1,177 @@
+version: "3.8"
+
+# ============================================================
+# ReLake — 实时数据湖基础设施
+# ============================================================
+
+services:
+
+  # ==================== Nacos 注册/配置中心 ====================
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: relake-nacos
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+      - NACOS_AUTH_ENABLE=false
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - relake-net
+
+  # ==================== Kafka (KRaft, 无 ZooKeeper) ====================
+  kafka:
+    image: bitnami/kafka:3.7.2
+    container_name: relake-kafka
+    environment:
+      # KRaft mode
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      # Listeners
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # Auto-create topics
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_CFG_LOG_RETENTION_HOURS=168
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - relake-net
+
+  # ==================== MinIO 对象存储 ====================
+  minio:
+    image: minio/minio:RELEASE.2024-04-18T19-09-19Z
+    container_name: relake-minio
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=admin123456
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - relake-net
+
+  # ==================== MySQL - 元数据存储 ====================
+  metadata-mysql:
+    image: mysql:8.0.37
+    container_name: relake-metadata-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123
+      - MYSQL_DATABASE=relake_metadata
+      - MYSQL_USER=relake
+      - MYSQL_PASSWORD=relake123
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - metadata-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - relake-net
+
+  # ==================== MySQL - 数据源（模拟业务库） ====================
+  source-mysql:
+    image: mysql:8.0.37
+    container_name: relake-source-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123
+      - MYSQL_DATABASE=business_db
+      - MYSQL_USER=relake
+      - MYSQL_PASSWORD=relake123
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --binlog-row-image=FULL
+      --expire-logs-days=7
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+    ports:
+      - "3307:3306"
+    volumes:
+      - source-mysql-data:/var/lib/mysql
+      - ./docker/mysql-source/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - relake-net
+
+  # ==================== Canal Server (CDC) ====================
+  canal-server:
+    image: canal/canal-server:v1.1.7
+    container_name: relake-canal-server
+    depends_on:
+      source-mysql:
+        condition: service_healthy
+    environment:
+      - canal.auto.scan=false
+      - canal.instance.master.address=source-mysql:3306
+      - canal.instance.dbUsername=root
+      - canal.instance.dbPassword=root123
+      - canal.instance.connectionCharset=UTF-8
+      - canal.instance.filter.regex=business_db\\..*
+      - canal.instance.tsdb.enable=true
+      - canal.instance.gtidon=true
+      # Kafka 模式，直接投递到 Kafka
+      - canal.serverMode=kafka
+      - canal.mq.servers=kafka:9092
+      - canal.mq.retries=3
+      - canal.mq.batchMode=MEMSIZE
+      - canal.mq.maxRequestSize=1048576
+      - canal.mq.flatMessage=true
+    ports:
+      - "11111:11111"
+    volumes:
+      - canal-logs:/home/admin/canal-server/logs
+    networks:
+      - relake-net
+
+volumes:
+  nacos-data:
+  kafka-data:
+  minio-data:
+  metadata-mysql-data:
+  source-mysql-data:
+  canal-logs:
+
+networks:
+  relake-net:
+    driver: bridge

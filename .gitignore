@@ -1,0 +1,36 @@
+# ====== Maven ======
+target/
+*.jar
+*.war
+*.ear
+
+# ====== IDE ======
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+*~
+
+# ====== OS ======
+.DS_Store
+Thumbs.db
+
+# ====== Logs ======
+logs/
+*.log
+
+# ====== Node (frontend) ======
+node_modules/
+dist/
+.env.local
+.env.*.local
+
+# ====== Docker volumes ======
+docker-volumes/
+
+# ====== Environment ======
+.env
