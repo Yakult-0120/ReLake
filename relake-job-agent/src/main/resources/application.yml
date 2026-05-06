@@ -1,0 +1,15 @@
+server:
+  port: 8085
+
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+
+# 默认工作目录（可被请求中的 workingDir 覆盖）
+job:
+  default-work-dir: ${JOB_WORK_DIR:/tmp}
+
+# 内部认证
+relake:
+  internal-auth:
+    enabled: true

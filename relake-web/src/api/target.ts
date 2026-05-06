@@ -3,7 +3,7 @@ import request, { type R } from './request'
 export interface Target {
   id?: string | number
   name: string
-  targetType: string
+  storageType: string
   endpoint: string
   bucket: string
   accessKey: string

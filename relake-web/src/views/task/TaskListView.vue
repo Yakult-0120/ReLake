@@ -327,7 +327,7 @@ onMounted(() => {
             <el-option
               v-for="t in targets"
               :key="t.id"
-              :label="`${t.name} (${t.targetType})`"
+              :label="`${t.name} (${t.storageType})`"
               :value="t.id!"
             />
           </el-select>

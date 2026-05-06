@@ -167,6 +167,22 @@ services:
     networks:
       - relake-net
 
+  # ==================== Job Agent (通用CLI执行代理) ====================
+  job-agent:
+    build:
+      context: .
+      dockerfile: docker/job-agent/Dockerfile
+    container_name: relake-job-agent
+    environment:
+      - NACOS_SERVER_ADDR=nacos:8848
+      - SERVER_PORT=8085
+      # 注册 IP 为 localhost，让宿主机 executor 可以直连
+      - SPRING_CLOUD_NACOS_DISCOVERY_IP=localhost
+    ports:
+      - "8085:8085"
+    networks:
+      - relake-net
+
 volumes:
   nacos-data:
   kafka-data:

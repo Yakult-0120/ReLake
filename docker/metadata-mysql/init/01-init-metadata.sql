@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS ds_target (
     secret_key      VARCHAR(500)    NOT NULL COMMENT 'SecretKey(AES加密)',
     bucket          VARCHAR(100)    NOT NULL COMMENT 'Bucket名称',
     region          VARCHAR(50)     DEFAULT 'us-east-1' COMMENT 'Region',
-    paimon_warehouse VARCHAR(300)  NOT NULL COMMENT 'Paimon Warehouse路径, 如 s3://bucket/paimon',
+    paimon_warehouse VARCHAR(300)  DEFAULT NULL COMMENT 'Paimon Warehouse路径, 如 s3://bucket/paimon',
     status          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE' COMMENT '状态: ACTIVE, DISABLED',
     description     VARCHAR(500)    DEFAULT NULL COMMENT '备注描述',
     create_time     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

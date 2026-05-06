@@ -15,6 +15,8 @@ canal:
 
 datax:
   home: ${DATAX_HOME:/opt/datax}
+  # Docker 模式下，DataX 容器内 localhost 应指向宿主机
+  docker-host: ${DATAX_DOCKER_HOST:host.docker.internal}
 
 flink:
   gateway:

@@ -49,7 +49,7 @@ export function createTask(data: Task) {
 }
 
 export function updateTask(data: Task) {
-  return request.put<any, R<Task>>('/api/v1/tasks', data)
+  return request.put<any, R<Task>>(`/api/v1/tasks/${data.id}`, data)
 }
 
 export function deleteTask(id: string | number) {

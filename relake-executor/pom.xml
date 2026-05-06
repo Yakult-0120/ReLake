@@ -43,6 +43,16 @@
             <artifactId>canal.client</artifactId>
         </dependency>
 
+        <!-- OpenFeign + LoadBalancer (for DataX Agent calls) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
         <!-- OkHttp (for Flink REST API calls) -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

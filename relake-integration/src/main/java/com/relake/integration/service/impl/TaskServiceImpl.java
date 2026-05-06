@@ -114,25 +114,40 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
     @Override
     public TaskVO validate(Long id) {
         Task task = getEntity(id);
-        task = orchestrator.validate(task);
-        updateById(task);
-        return TaskVO.from(task);
+        try {
+            task = orchestrator.validate(task);
+            updateById(task);
+            return TaskVO.from(task);
+        } catch (BusinessException e) {
+            updateById(task); // 校验失败：持久化 FAILED 状态 + errorMessage
+            throw e;
+        }
     }
 
     @Override
     public TaskVO start(Long id) {
         Task task = getEntity(id);
-        task = orchestrator.start(task);
-        updateById(task);
-        return TaskVO.from(task);
+        try {
+            task = orchestrator.start(task);
+            updateById(task);
+            return TaskVO.from(task);
+        } catch (BusinessException e) {
+            updateById(task); // 启动失败：持久化最新状态
+            throw e;
+        }
     }
 
     @Override
     public TaskVO stop(Long id) {
         Task task = getEntity(id);
-        task = orchestrator.stop(task);
-        updateById(task);
-        return TaskVO.from(task);
+        try {
+            task = orchestrator.stop(task);
+            updateById(task);
+            return TaskVO.from(task);
+        } catch (BusinessException e) {
+            updateById(task); // 停止失败：持久化最新状态
+            throw e;
+        }
     }
 
     @Override

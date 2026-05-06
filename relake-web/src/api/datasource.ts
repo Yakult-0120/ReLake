@@ -38,7 +38,7 @@ export function createDatasource(data: Datasource) {
 }
 
 export function updateDatasource(data: Datasource) {
-  return request.put<any, R<Datasource>>('/api/v1/datasources', data)
+  return request.put<any, R<Datasource>>(`/api/v1/datasources/${data.id}`, data)
 }
 
 export function deleteDatasource(id: string | number) {

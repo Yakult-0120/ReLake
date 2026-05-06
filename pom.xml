@@ -17,6 +17,7 @@
         <module>relake-metadata</module>
         <module>relake-integration</module>
         <module>relake-executor</module>
+        <module>relake-job-agent</module>
     </modules>
 
     <parent>

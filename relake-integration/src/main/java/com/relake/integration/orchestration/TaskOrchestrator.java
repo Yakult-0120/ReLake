@@ -49,16 +49,28 @@ public class TaskOrchestrator {
 
         try {
             // 1. 通过 Feign 验证数据源是否存在
+            log.info("校验步骤1: 调用 MetadataClient.getDatasource({})", task.getDatasourceId());
             R<DatasourceDTO> dsR = metadataClient.getDatasource(task.getDatasourceId());
+            log.info("校验步骤1 响应: code={}, message={}, dataType={}",
+                    dsR.getCode(), dsR.getMessage(),
+                    dsR.getData() != null ? dsR.getData().getClass().getSimpleName() : "null");
             if (!dsR.isSuccess() || dsR.getData() == null) {
+                log.error("校验步骤1 失败: isSuccess={}, dataIsNull={}, datasourceId={}",
+                        dsR.isSuccess(), dsR.getData() == null, task.getDatasourceId());
                 throw new BusinessException(ResultCode.TASK_CONFIG_INVALID,
                         "数据源不存在: " + task.getDatasourceId());
             }
             DatasourceDTO ds = dsR.getData();
 
             // 2. 通过 Feign 验证目标存储是否存在
+            log.info("校验步骤2: 调用 MetadataClient.getTarget({})", task.getTargetId());
             R<TargetDTO> targetR = metadataClient.getTarget(task.getTargetId());
+            log.info("校验步骤2 响应: code={}, message={}, dataType={}",
+                    targetR.getCode(), targetR.getMessage(),
+                    targetR.getData() != null ? targetR.getData().getClass().getSimpleName() : "null");
             if (!targetR.isSuccess() || targetR.getData() == null) {
+                log.error("校验步骤2 失败: isSuccess={}, dataIsNull={}, targetId={}",
+                        targetR.isSuccess(), targetR.getData() == null, task.getTargetId());
                 throw new BusinessException(ResultCode.TASK_CONFIG_INVALID,
                         "目标存储不存在: " + task.getTargetId());
             }
