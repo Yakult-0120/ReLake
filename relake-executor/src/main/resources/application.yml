@@ -1,0 +1,21 @@
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: relake-canal-consumer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+canal:
+  kafka:
+    topic: ${CANAL_KAFKA_TOPIC:example}
+
+datax:
+  home: ${DATAX_HOME:/opt/datax}
+
+flink:
+  gateway:
+    url: ${FLINK_GATEWAY_URL:http://localhost:8081}

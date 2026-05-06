@@ -1,4 +1,6 @@
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
   cloud:
     gateway:
       discovery:
@@ -37,3 +39,5 @@ relake:
   jwt:
     secret: ReLake-2026-Secret-Key-For-JWT-Must-Be-At-Least-256-Bits!
     expiration: 86400000  # 24小时
+    admin-username: admin
+    admin-password: admin

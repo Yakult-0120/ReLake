@@ -1,0 +1,5 @@
+# ReLake Nacos 共享配置
+# dataId: relake-common.yaml
+# group: DEFAULT_GROUP
+# 所有服务 bootstrap.yml 中 shared-configs 引用此配置
+spring: {}

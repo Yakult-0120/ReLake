@@ -21,8 +21,14 @@ public class AuthController {
     @Value("${relake.jwt.expiration:86400000}")
     private long expirationMs;
 
+    @Value("${relake.jwt.admin-username:admin}")
+    private String adminUsername;
+
+    @Value("${relake.jwt.admin-password:admin}")
+    private String adminPassword;
+
     /**
-     * 登录 —— 暂用内置账号，后续对接用户服务
+     * 登录 — 使用内置管理员账号（凭据可通过配置覆盖）
      */
     @PostMapping("/login")
     public R<LoginResponse> login(@RequestBody LoginRequest request) {
@@ -33,8 +39,7 @@ public class AuthController {
             return R.fail(ResultCode.BAD_REQUEST, "密码不能为空");
         }
 
-        // TODO Phase X: 对接用户服务做真实校验
-        if (!"admin".equals(request.getUsername()) || !"admin".equals(request.getPassword())) {
+        if (!adminUsername.equals(request.getUsername()) || !adminPassword.equals(request.getPassword())) {
             return R.fail(ResultCode.UNAUTHORIZED, "用户名或密码错误");
         }
 

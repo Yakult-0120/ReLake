@@ -21,6 +21,11 @@ public class R<T> implements Serializable {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /** 判断是否为成功响应 */
+    public boolean isSuccess() {
+        return this.code == ResultCode.SUCCESS.getCode();
+    }
+
     // ---- 工厂方法 ----
 
     public static <T> R<T> ok() {

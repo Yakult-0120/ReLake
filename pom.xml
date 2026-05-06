@@ -40,6 +40,9 @@
         <!-- JWT -->
         <jjwt.version>0.12.6</jjwt.version>
 
+        <!-- CDC -->
+        <canal.client.version>1.1.7</canal.client.version>
+
         <!-- Utils -->
         <lombok.version>1.18.34</lombok.version>
         <hutool.version>5.8.29</hutool.version>
@@ -103,10 +106,21 @@
                 <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
                 <version>${knife4j.version}</version>
             </dependency>
-            <!-- ReLake common -->
+            <!-- Canal Client -->
+            <dependency>
+                <groupId>com.alibaba.otter</groupId>
+                <artifactId>canal.client</artifactId>
+                <version>${canal.client.version}</version>
+            </dependency>
+            <!-- ReLake modules -->
             <dependency>
                 <groupId>com.relake</groupId>
                 <artifactId>relake-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.relake</groupId>
+                <artifactId>relake-executor</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
@@ -119,6 +133,11 @@
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- 重新启用 bootstrap.yml (Spring Cloud 2023 默认禁用) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -127,6 +146,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <skip>true</skip>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
