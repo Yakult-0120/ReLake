@@ -20,6 +20,9 @@ public enum TaskStatus {
     /** 失败 */
     FAILED,
 
+    /** 已完成 — 同步任务正常结束 */
+    FINISHED,
+
     /** 已停止 */
     STOPPED
 }

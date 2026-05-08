@@ -48,6 +48,7 @@ function getStatusTag(status: string | undefined) {
     READY: 'success',
     RUNNING: '',
     FAILED: 'danger',
+    FINISHED: 'success',
     STOPPED: 'info',
   }
   return map[status || 'DRAFT'] || 'info'
@@ -60,6 +61,7 @@ function getStatusLabel(status: string | undefined) {
     READY: '就绪',
     RUNNING: '运行中',
     FAILED: '失败',
+    FINISHED: '已完成',
     STOPPED: '已停止',
   }
   return map[status || 'DRAFT'] || status || '未知'
@@ -195,8 +197,12 @@ async function handleStop(row: Task) {
 async function handleCheckStatus(row: Task) {
   try {
     const res = await getTaskStatus(row.id!)
-    statusText.value = res.data.data?.status || 'UNKNOWN'
+    statusText.value = res.data.data || 'UNKNOWN'
     statusVisible.value = true
+    // 引擎终态时自动刷新列表
+    if (statusText.value === 'FINISHED' || statusText.value === 'FAILED') {
+      fetchData()
+    }
   } catch {
     // handled
   }

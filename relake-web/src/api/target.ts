@@ -38,7 +38,7 @@ export function createTarget(data: Target) {
 }
 
 export function updateTarget(data: Target) {
-  return request.put<any, R<Target>>('/api/v1/targets', data)
+  return request.put<any, R<Target>>(`/api/v1/targets/${data.id}`, data)
 }
 
 export function deleteTarget(id: string | number) {

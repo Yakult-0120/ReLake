@@ -11,6 +11,7 @@ import com.relake.integration.dto.TaskUpdateRequest;
 import com.relake.integration.dto.TaskVO;
 import com.relake.integration.entity.Task;
 import com.relake.integration.mapper.TaskMapper;
+import com.relake.executor.model.JobStatus;
 import com.relake.integration.model.TaskStatus;
 import com.relake.integration.orchestration.TaskOrchestrator;
 import com.relake.integration.service.TaskService;
@@ -153,7 +154,17 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
     @Override
     public String getJobStatus(Long id) {
         Task task = getEntity(id);
-        return orchestrator.getJobStatus(task).name();
+        JobStatus jobStatus = orchestrator.getJobStatus(task);
+        // 引擎终态 → 同步到任务状态，前端表格可即时反映
+        if (jobStatus == JobStatus.FINISHED || jobStatus == JobStatus.FAILED) {
+            if (!jobStatus.name().equals(task.getStatus())) {
+                String oldStatus = task.getStatus();
+                task.setStatus(jobStatus.name());
+                updateById(task);
+                log.info("任务状态已同步: taskId={}, {}→{}", id, oldStatus, jobStatus.name());
+            }
+        }
+        return jobStatus.name();
     }
 
     @Override

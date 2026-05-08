@@ -5,11 +5,26 @@ spring:
   autoconfigure:
     exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 
-# 默认工作目录（可被请求中的 workingDir 覆盖）
+# XXL-JOB Executor 配置
+xxl:
+  job:
+    admin:
+      addresses: ${XXL_JOB_ADMIN_URL:http://xxl-job-admin:8086/xxl-job-admin}
+    executor:
+      appname: relake-datax-executor
+      port: 9999
+      logpath: /data/logs/xxl-job
+    accessToken: relake_token
+
+# DataX 安装目录
+datax:
+  home: ${DATAX_HOME:/opt/datax}
+
+# Integration 内部 API 地址（Job Agent 调 Integration 获取 DataX 配置）
+relake:
+  integration:
+    url: ${INTEGRATION_URL:http://host.docker.internal:8083}
+
+# 默认工作目录
 job:
   default-work-dir: ${JOB_WORK_DIR:/tmp}
-
-# 内部认证
-relake:
-  internal-auth:
-    enabled: true

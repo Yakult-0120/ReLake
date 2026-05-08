@@ -10,9 +10,10 @@ import java.util.Set;
 /**
  * 任务状态机 — 定义并校验合法的状态转换
  * <pre>
- * DRAFT → VALIDATING → READY → RUNNING → STOPPED
- *   ↓        ↓          ↓         ↓
- *   └────────┴──────────┴──→ FAILED
+ * DRAFT → VALIDATING → READY → RUNNING → FINISHED
+ *   ↓        ↓          ↓         ↓         ↓
+ *   └────────┴──────────┴──→ FAILED ←────────┘
+ *                                    ST OPPED
  * </pre>
  */
 @Slf4j
@@ -23,9 +24,10 @@ public class TaskStateMachine {
             TaskStatus.DRAFT, Set.of(TaskStatus.VALIDATING, TaskStatus.FAILED),
             TaskStatus.VALIDATING, Set.of(TaskStatus.READY, TaskStatus.FAILED),
             TaskStatus.READY, Set.of(TaskStatus.RUNNING, TaskStatus.FAILED),
-            TaskStatus.RUNNING, Set.of(TaskStatus.FAILED, TaskStatus.STOPPED),
+            TaskStatus.RUNNING, Set.of(TaskStatus.FINISHED, TaskStatus.FAILED, TaskStatus.STOPPED),
+            TaskStatus.FINISHED, Set.of(),                          // 终态
             TaskStatus.FAILED, Set.of(TaskStatus.VALIDATING),      // 重试校验
-            TaskStatus.STOPPED, Set.of()
+            TaskStatus.STOPPED, Set.of()                            // 终态
     );
 
     /**

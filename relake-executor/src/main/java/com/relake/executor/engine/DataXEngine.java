@@ -2,12 +2,9 @@ package com.relake.executor.engine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.relake.common.web.BusinessException;
-import com.relake.common.web.R;
 import com.relake.common.web.ResultCode;
-import com.relake.executor.dto.JobStatusVO;
-import com.relake.executor.dto.JobSubmitRequest;
-import com.relake.executor.dto.JobSubmitResponse;
-import com.relake.executor.feign.JobAgentClient;
+import com.relake.executor.client.XxlJobAdminClient;
+import com.relake.executor.dto.XxlJobLogDTO;
 import com.relake.executor.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,26 +18,23 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * DataX 引擎 — 离线批量同步
  * <p>
- * 生成 DataX JSON 任务配置，通过 Job Agent（通用 CLI 执行代理）提交执行。
- * 自身不再直接调用 ProcessBuilder，解耦 DataX 运行环境。
+ * 通过 XXL-JOB Admin API 创建任务、触发执行、查询状态和日志。
+ * Job Agent (XXL-JOB Executor) 负责实际的 DataX 命令执行。
  */
 @Slf4j
 @Component
 public class DataXEngine implements SyncEngine {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ConcurrentHashMap<String, JobHandle> jobRegistry = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Integer> taskJobMap = new ConcurrentHashMap<>();
 
-    private final JobAgentClient agentClient;
+    private final XxlJobAdminClient adminClient;
     private final String dataxHome;
-    private final String dockerHost;
 
-    public DataXEngine(JobAgentClient agentClient,
-                       @Value("${datax.home:/opt/datax}") String dataxHome,
-                       @Value("${datax.docker-host:host.docker.internal}") String dockerHost) {
-        this.agentClient = agentClient;
+    public DataXEngine(XxlJobAdminClient adminClient,
+                       @Value("${datax.home:/opt/datax}") String dataxHome) {
+        this.adminClient = adminClient;
         this.dataxHome = dataxHome;
-        this.dockerHost = dockerHost;
     }
 
     @Override
@@ -64,48 +58,39 @@ public class DataXEngine implements SyncEngine {
 
     @Override
     public JobHandle submit(TaskConfig config) {
-        String jobId = "datax-" + config.getTaskId() + "-" + System.currentTimeMillis();
-        JobHandle handle = JobHandle.of(EngineType.DATAX, jobId);
+        Long taskId = config.getTaskId();
+        JobHandle handle = JobHandle.of(EngineType.DATAX, "xxl-" + taskId);
 
         try {
-            // 生成 DataX JSON 配置文件内容
-            String jobJson = generateDataXJson(config);
-            String configFileName = "datax-job-" + config.getTaskId() + ".json";
-            log.info("DataX JSON 配置已生成: taskId={}, tables={}", config.getTaskId(), config.getSourceTables());
-
-            // 构造通用 Job 提交请求
-            JobSubmitRequest req = new JobSubmitRequest();
-            req.setTaskId(config.getTaskId());
-            req.setTaskName(config.getTaskName());
-            req.setCommand("python");
-            req.setArgs(List.of("bin/datax.py", configFileName));
-            req.setWorkingDir(dataxHome);
-            req.setConfigFiles(Map.of(configFileName, jobJson));
-
-            // 通过 Feign 调 Job Agent 提交
-            R<JobSubmitResponse> resp = agentClient.submitJob(req);
-            if (!resp.isSuccess() || resp.getData() == null) {
-                throw new BusinessException(ResultCode.TASK_START_FAILED,
-                        "Job Agent 提交失败: " + resp.getMessage());
+            // 1. 创建或复用 XXL-JOB 任务
+            Integer xxlJobId = taskJobMap.get(taskId);
+            if (xxlJobId == null) {
+                xxlJobId = adminClient.findOrCreateJob(
+                        "DataX-" + config.getTaskName(),
+                        "dataxSync",
+                        String.valueOf(taskId),        // executorParam = taskId
+                        "0 0 2 * * ?"                  // 默认凌晨2点 Cron
+                );
+                taskJobMap.put(taskId, xxlJobId);
             }
 
+            // 2. 触发执行
+            adminClient.triggerJob(xxlJobId, String.valueOf(taskId));
+
+            // 3. 返回 JobHandle
             handle.setStatus(JobStatus.RUNNING);
-            handle.setInternalId(resp.getData().getJobId());
-            jobRegistry.put(jobId, handle);
-            log.info("DataX 任务已提交至 Job Agent: jobId={}, agentJobId={}, taskId={}",
-                    jobId, resp.getData().getJobId(), config.getTaskId());
+            handle.setInternalId(String.valueOf(xxlJobId));
+            log.info("DataX 任务已通过 XXL-JOB 触发: taskId={}, xxlJobId={}", taskId, xxlJobId);
 
         } catch (BusinessException e) {
             log.error("DataX 任务提交失败: taskId={}, error={}", config.getTaskId(), e.getMessage());
             handle.setStatus(JobStatus.FAILED);
-            jobRegistry.put(jobId, handle);
             throw e;
         } catch (Exception e) {
             log.error("DataX 任务提交异常: taskId={}, error={}", config.getTaskId(), e.getMessage(), e);
             handle.setStatus(JobStatus.FAILED);
-            jobRegistry.put(jobId, handle);
             throw new BusinessException(ResultCode.TASK_START_FAILED,
-                    "DataX Agent 不可用: " + e.getMessage());
+                    "XXL-JOB 触发失败: " + e.getMessage());
         }
 
         return handle;
@@ -115,32 +100,36 @@ public class DataXEngine implements SyncEngine {
     public void stop(JobHandle handle) {
         try {
             if (handle.getInternalId() != null) {
-                agentClient.stopJob(handle.getInternalId());
+                int xxlJobId = Integer.parseInt(handle.getInternalId());
+                adminClient.killJob(xxlJobId);
             }
         } catch (Exception e) {
             log.warn("停止 DataX Job 异常: jobId={}, error={}", handle.getJobId(), e.getMessage());
         }
-        JobHandle existing = jobRegistry.remove(handle.getJobId());
-        if (existing != null) {
-            existing.setStatus(JobStatus.STOPPED);
-            log.info("DataX Job 已停止: jobId={}", handle.getJobId());
-        }
+        log.info("DataX Job 已请求停止: jobId={}", handle.getJobId());
     }
 
     @Override
     public JobStatus getStatus(JobHandle handle) {
         if (handle.getInternalId() == null) {
-            JobHandle local = jobRegistry.get(handle.getJobId());
-            return local != null ? local.getStatus() : JobStatus.UNKNOWN;
+            log.warn("DataX getStatus: internalId 为空, jobId={}", handle.getJobId());
+            return JobStatus.UNKNOWN;
         }
 
         try {
-            R<JobStatusVO> resp = agentClient.getJobStatus(handle.getInternalId());
-            if (resp.isSuccess() && resp.getData() != null) {
-                return mapStatus(resp.getData().getStatus());
+            int xxlJobId = Integer.parseInt(handle.getInternalId());
+            log.info("DataX getStatus: 查询 xxlJobId={}, jobId={}", xxlJobId, handle.getJobId());
+            XxlJobLogDTO logDTO = adminClient.getLastLog(xxlJobId);
+            if (logDTO == null) {
+                log.warn("DataX getStatus: getLastLog 返回 null, xxlJobId={}", xxlJobId);
+                return JobStatus.UNKNOWN;
             }
+            JobStatus status = mapHandleCode(logDTO.getHandleCode());
+            log.info("DataX getStatus: xxlJobId={}, handleCode={}, handleMsg={}, mappedStatus={}",
+                    xxlJobId, logDTO.getHandleCode(), logDTO.getHandleMsg(), status);
+            return status;
         } catch (Exception e) {
-            log.debug("查询 DataX Job 状态异常: {}", e.getMessage());
+            log.error("DataX getStatus 异常: internalId={}, error={}", handle.getInternalId(), e.getMessage(), e);
         }
         return JobStatus.UNKNOWN;
     }
@@ -152,14 +141,14 @@ public class DataXEngine implements SyncEngine {
         }
 
         try {
-            R<JobStatusVO> resp = agentClient.getJobStatus(handle.getInternalId());
-            if (resp.isSuccess() && resp.getData() != null) {
-                JobStatusVO s = resp.getData();
-                return new Metrics()
-                        .setRecordsIn(s.getOutputLines())
-                        .setRecordsOut(s.getOutputLines())
-                        .setErrorCount(s.getErrorLines());
-            }
+            int xxlJobId = Integer.parseInt(handle.getInternalId());
+            Integer logId = adminClient.getLastLogId(xxlJobId);
+            if (logId == null) return Metrics.empty();
+
+            String logContent = adminClient.getJobLogContent(logId);
+            if (logContent == null) return Metrics.empty();
+
+            return parseMetricsFromLog(logContent);
         } catch (Exception e) {
             log.debug("查询 DataX Job 指标异常: {}", e.getMessage());
         }
@@ -167,6 +156,20 @@ public class DataXEngine implements SyncEngine {
     }
 
     // ──────── DataX JSON 配置生成 ────────
+
+    /**
+     * 根据 TaskConfig 生成 DataX JSON 任务配置
+     * <p>
+     * （供 Integration 内部 API 调用，返回给 Job Agent 执行）
+     */
+    public String buildDataXJson(TaskConfig config) {
+        try {
+            return generateDataXJson(config);
+        } catch (Exception e) {
+            log.error("生成 DataX JSON 失败: taskId={}, error={}", config.getTaskId(), e.getMessage());
+            throw new RuntimeException("生成 DataX JSON 失败", e);
+        }
+    }
 
     private String generateDataXJson(TaskConfig config) throws Exception {
         Map<String, Object> job = new LinkedHashMap<>();
@@ -179,15 +182,9 @@ public class DataXEngine implements SyncEngine {
         readerParam.put("password", config.getDatasourcePassword());
         readerParam.put("column", List.of("*"));
 
-        // 解决容器内外网络视角差异：localhost → host.docker.internal
-        String jdbcHost = config.getDatasourceHost();
-        if ("localhost".equals(jdbcHost) || "127.0.0.1".equals(jdbcHost)) {
-            jdbcHost = dockerHost;
-        }
-
         Map<String, Object> connection = new LinkedHashMap<>();
         connection.put("jdbcUrl", List.of(
-                "jdbc:mysql://" + jdbcHost + ":" + config.getDatasourcePort()
+                "jdbc:mysql://" + config.getDatasourceHost() + ":" + config.getDatasourcePort()
                         + "/" + config.getDatasourceDbName()
                         + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"
         ));
@@ -223,18 +220,49 @@ public class DataXEngine implements SyncEngine {
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(job);
     }
 
+    // ──────── 状态映射 ────────
+
     /**
-     * 将 Job Agent 的状态字符串映射为 JobStatus 枚举
+     * 将 XXL-JOB handle_code 映射为 JobStatus
+     * 200 = 成功, 500 = 失败, 0 = 运行中
      */
-    private static JobStatus mapStatus(String status) {
-        if (status == null) return JobStatus.UNKNOWN;
-        return switch (status.toUpperCase()) {
-            case "SUBMITTED" -> JobStatus.SUBMITTED;
-            case "RUNNING" -> JobStatus.RUNNING;
-            case "FINISHED" -> JobStatus.FINISHED;
-            case "FAILED" -> JobStatus.FAILED;
-            case "STOPPED" -> JobStatus.STOPPED;
-            default -> JobStatus.UNKNOWN;
+    private static JobStatus mapHandleCode(int handleCode) {
+        return switch (handleCode) {
+            case 200 -> JobStatus.FINISHED;
+            case 500 -> JobStatus.FAILED;
+            default -> JobStatus.RUNNING;
         };
+    }
+
+    /**
+     * 从 XXL-JOB 执行日志中提取 DataX 指标
+     */
+    private static Metrics parseMetricsFromLog(String logContent) {
+        if (logContent == null || logContent.isBlank()) return Metrics.empty();
+        Metrics metrics = new Metrics();
+
+        try {
+            String[] lines = logContent.split("\n");
+            for (String line : lines) {
+                if (line.contains("读出记录总数")) {
+                    metrics.setRecordsOut(extractNumber(line));
+                } else if (line.contains("读写失败总数")) {
+                    metrics.setErrorCount(extractNumber(line));
+                } else if (line.contains("记录写入速度")) {
+                    metrics.setRecordsIn(extractNumber(line));
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return metrics;
+    }
+
+    private static long extractNumber(String line) {
+        try {
+            String num = line.replaceAll("[^0-9]", "");
+            return num.isEmpty() ? 0 : Long.parseLong(num);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 }

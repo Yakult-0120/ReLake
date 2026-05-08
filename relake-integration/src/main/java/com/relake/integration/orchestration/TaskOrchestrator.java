@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -36,6 +38,7 @@ public class TaskOrchestrator {
     private final SyncEngineFactory engineFactory;
     private final MetadataClient metadataClient;
     private final TaskStateMachine stateMachine;
+    private final ObjectMapper objectMapper;
 
     /**
      * 校验任务配置：验证数据源/目标存在 → 引擎校验 → 状态 READY
@@ -108,11 +111,18 @@ public class TaskOrchestrator {
 
     /**
      * 启动任务：组装 TaskConfig → 选择引擎 → 提交 → RUNNING
+     * 如果任务处于 FAILED 状态，自动先重新校验
      *
      * @return 包含 JobHandle 信息的更新后任务
      */
     public Task start(Task task) {
-        stateMachine.transition(TaskStatus.valueOf(task.getStatus()), TaskStatus.RUNNING);
+        TaskStatus currentStatus = TaskStatus.valueOf(task.getStatus());
+        if (currentStatus == TaskStatus.FAILED) {
+            log.info("任务状态为 FAILED，自动重新校验: id={}", task.getId());
+            task = validate(task);
+            currentStatus = TaskStatus.valueOf(task.getStatus());
+        }
+        stateMachine.transition(currentStatus, TaskStatus.RUNNING);
 
         try {
             // 1. 获取解密完整信息
@@ -178,15 +188,23 @@ public class TaskOrchestrator {
      * 查询任务运行状态（实时从引擎获取）
      */
     public JobStatus getJobStatus(Task task) {
-        if (task.getJobHandleJson() == null) return JobStatus.UNKNOWN;
+        if (task.getJobHandleJson() == null) {
+            log.warn("getJobStatus: task[{}] jobHandleJson 为空", task.getId());
+            return JobStatus.UNKNOWN;
+        }
 
         try {
             EngineType engineType = EngineType.valueOf(task.getEngineType());
             SyncEngine engine = engineFactory.getEngine(engineType);
             JobHandle handle = deserializeJobHandle(task.getJobHandleJson());
-            return handle != null ? engine.getStatus(handle) : JobStatus.UNKNOWN;
+            if (handle == null) {
+                log.warn("getJobStatus: task[{}] deserializeJobHandle 返回 null, json={}", task.getId(), task.getJobHandleJson());
+                return JobStatus.UNKNOWN;
+            }
+            log.info("getJobStatus: task[{}], engine={}, jobId={}, internalId={}", task.getId(), engineType, handle.getJobId(), handle.getInternalId());
+            return engine.getStatus(handle);
         } catch (Exception e) {
-            log.debug("查询引擎状态异常: {}", e.getMessage());
+            log.error("getJobStatus 异常: task[{}], error={}", task.getId(), e.getMessage(), e);
             return JobStatus.UNKNOWN;
         }
     }
@@ -247,9 +265,9 @@ public class TaskOrchestrator {
 
     private String serializeJobHandle(JobHandle handle) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(handle);
+            return objectMapper.writeValueAsString(handle);
         } catch (Exception e) {
-            log.warn("JobHandle 序列化失败: {}", e.getMessage());
+            log.error("JobHandle 序列化失败: handle={}, error={}", handle, e.getMessage(), e);
             return null;
         }
     }
@@ -257,9 +275,9 @@ public class TaskOrchestrator {
     private JobHandle deserializeJobHandle(String json) {
         if (json == null || json.isBlank()) return null;
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(json, JobHandle.class);
+            return objectMapper.readValue(json, JobHandle.class);
         } catch (Exception e) {
-            log.warn("JobHandle 反序列化失败: {}", e.getMessage());
+            log.error("JobHandle 反序列化失败: json={}, error={}", json, e.getMessage(), e);
             return null;
         }
     }
