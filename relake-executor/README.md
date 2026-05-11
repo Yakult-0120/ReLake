@@ -13,8 +13,8 @@ relake-executor/src/main/java/com/relake/executor/
 ├── ExecutorApplication.java          # 启动类（端口 8084）
 ├── model/
 │   ├── EngineType.java               # 引擎类型枚举：CANAL / FLINK_CDC / DATAX
-│   ├── JobStatus.java                # Job 状态：SUBMITTED → RUNNING → FINISHED / FAILED / STOPPED
-│   ├── JobHandle.java                # Job 句柄（engineType + jobId + status + startTime）
+│   ├── JobStatus.java                # Job 状态：SUBMITTED → RUNNING → FINISHED / FAILED / STOPPED / UNKNOWN
+│   ├── JobHandle.java                # Job 句柄（engineType + jobId + status + startTime + internalId）
 │   ├── Metrics.java                  # 运行指标（recordsIn/Out, bytesIn/Out, latencyMs）
 │   └── TaskConfig.java               # 引擎入参（datasource/target 完整字段 + sourceTables）
 ├── engine/
@@ -22,7 +22,11 @@ relake-executor/src/main/java/com/relake/executor/
 │   ├── SyncEngineFactory.java        # 引擎工厂：@PostConstruct 自动注册所有 Bean
 │   ├── CanalEngine.java              # Canal 引擎实现（Kafka 消费骨架）
 │   ├── FlinkCdcEngine.java           # Flink CDC 引擎实现（SQL Gateway REST 客户端）
-│   └── DataXEngine.java              # DataX 引擎实现（JSON 配置生成）
+│   └── DataXEngine.java              # DataX 引擎实现（XXL-JOB REST客户端 + handleCode→JobStatus 映射）
+├── client/
+│   └── XxlJobAdminClient.java        # XXL-JOB Admin REST API 客户端（cookie认证+自动重登录）
+├── dto/
+│   └── XxlJobLogDTO.java             # XXL-JOB 执行日志响应 DTO
 ├── config/
 │   └── OkHttpConfig.java             # OkHttpClient Bean（FlinkCdcEngine 使用）
 └── controller/
@@ -83,12 +87,12 @@ public class SyncEngineFactory {
 | 维度 | CanalEngine | FlinkCdcEngine | DataXEngine |
 |------|------------|----------------|-------------|
 | **采集方式** | MySQL binlog 实时 | 全量 + 增量（CDC） | 离线批量 |
-| **中间件** | Kafka 消费 | Flink SQL Gateway | 进程直连 |
-| **输出** | Paimon Sink | Flink Paimon Sink | 文件/目标存储 |
-| **Phase 5 状态** | 骨架（Job 跟踪） | REST 客户端已实现 | JSON 配置生成 |
-| **Phase 7 增强** | Kafka Consumer 启动 | 实际提交 Flink Job | ProcessBuilder 执行 DataX |
-| **Job 跟踪** | ConcurrentHashMap | ConcurrentHashMap | ConcurrentHashMap |
-| **依赖** | canal.client + spring-kafka | OkHttp | Jackson |
+| **调度中间件** | Kafka 消费 | Flink SQL Gateway | **XXL-JOB Admin** |
+| **状态查询** | 进程内 ConcurrentHashMap | Flink REST API | **XXL-JOB REST API**（joblog/pageList） |
+| **输出** | Paimon Sink | Flink Paimon Sink | 目标存储 |
+| **当前状态** | 骨架（Job 跟踪） | REST 客户端已实现 | **✅ 已完成**（创建/触发/监控全链路） |
+| **Job 跟踪** | ConcurrentHashMap | ConcurrentHashMap | taskJobMap（本地缓存）+ XXL-JOB |
+| **依赖** | canal.client + spring-kafka | OkHttp | RestTemplate + XXL-JOB REST API |
 
 ### 4. Job 生命周期
 

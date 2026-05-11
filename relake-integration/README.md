@@ -10,7 +10,7 @@ ReLake 数据集成核心服务 —— 引擎无关的任务编排、状态机�
 
 ```
 relake-integration/src/main/java/com/relake/integration/
-├── IntegrationApplication.java       # 启动类（@EnableFeignClients, @MapperScan, 端口 8083）
+├── IntegrationApplication.java       # 启动类（@EnableFeignClients + @MapperScan + @ComponentScan executor, 端口 8083）
 ├── entity/
 │   └── Task.java                     # 同步任务实体 → ds_task 表
 ├── mapper/
@@ -18,8 +18,8 @@ relake-integration/src/main/java/com/relake/integration/
 ├── model/
 │   └── TaskStatus.java               # 任务状态枚举：DRAFT → VALIDATING → READY → RUNNING → FAILED / STOPPED
 ├── dto/
-│   ├── TaskCreateRequest.java        # 创建请求体（name, datasourceId, targetId, engineType, sourceTables...）
-│   ├── TaskUpdateRequest.java        # 更新请求体（字段可选）
+│   ├── TaskCreateRequest.java        # 创建请求体
+│   ├── TaskUpdateRequest.java        # 更新请求体
 │   ├── TaskVO.java                   # 响应体 + static from(Task)
 │   ├── DatasourceDTO.java            # Feign 响应 VO（含解密 password）
 │   └── TargetDTO.java                # Feign 响应 VO（含解密 secretKey）
@@ -30,13 +30,14 @@ relake-integration/src/main/java/com/relake/integration/
 │   └── MyMetaObjectHandler.java      # createTime / updateTime 自动填充
 ├── orchestration/
 │   ├── TaskStateMachine.java         # 【核心】状态机：定义并校验合法状态转换
-│   └── TaskOrchestrator.java         # 【核心】任务编排器：校验 → 路由引擎 → 提交 → 跟踪
+│   └── TaskOrchestrator.java         # 【核心】任务编排器：校验 → 路由引擎 → JobHandle 序列化 → 状态同步
 ├── service/
 │   ├── TaskService.java              # 接口：CRUD + validate + start + stop + status + metrics
 │   └── impl/
-│       └── TaskServiceImpl.java      # 实现（委托编排器 + Mapper）
+│       └── TaskServiceImpl.java      # 实现（委托编排器 + 引擎终态自动回写 DB）
 └── controller/
-    └── TaskController.java           # REST: /api/v1/tasks/**
+    ├── TaskController.java           # REST: /api/v1/tasks/**
+    └── InternalTaskController.java   # Internal: GET /internal/tasks/{taskId}/datax-config
 ```
 
 ## 核心设计
@@ -67,8 +68,8 @@ relake-integration/src/main/java/com/relake/integration/
 
 ```
 DRAFT —→ VALIDATING —→ READY —→ RUNNING —→ STOPPED
-  │         │            │         │
-  │         │            │         │
+  │         │            │         │    │
+  │         │            │         │    └──→ FINISHED（引擎终态同步）
   └─────────┴────────────┴──→ FAILED ←──┘
                               ↑ (可重试回 VALIDATING)
 ```
@@ -78,11 +79,25 @@ DRAFT —→ VALIDATING —→ READY —→ RUNNING —→ STOPPED
 | **DRAFT** | 新建未验证，刚创建 | VALIDATING, FAILED |
 | **VALIDATING** | 正通过 Feign 校验数据源/目标是否存在 | READY, FAILED |
 | **READY** | 校验通过，可启动 | RUNNING, FAILED |
-| **RUNNING** | 引擎正在执行 CDC 采集 | FAILED, STOPPED |
+| **RUNNING** | 引擎正在执行 | FAILED, STOPPED, **FINISHED（自动）** |
+| **FINISHED** | 引擎正常执行完成（由 getJobStatus 自动同步） | —（终态） |
 | **FAILED** | 执行失败，记录 errorMessage | VALIDATING（重试） |
 | **STOPPED** | 手动停止 | —（终态） |
 
 `TaskStateMachine` 硬编码所有合法转换，非法转换抛出 `IllegalStateException`。
+
+### 2.1 引擎状态自动同步
+
+`TaskServiceImpl.getJobStatus()` 不仅返回引擎实时状态，还会在引擎返回终态时自动将任务状态回写数据库：
+
+```java
+if (jobStatus == JobStatus.FINISHED || jobStatus == JobStatus.FAILED) {
+    task.setStatus(jobStatus.name());  // RUNNING → FINISHED
+    updateById(task);
+}
+```
+
+这样前端刷新列表即可看到最新状态，无需额外的定时轮询器。
 
 ### 3. 任务编排流程
 
@@ -109,9 +124,28 @@ DRAFT    READY     RUNNING          STOPPED
 1. 状态机: READY → RUNNING
 2. Feign 获取解密凭据（同 validate）
 3. 组装 TaskConfig（含解密 password/secretKey）
-4. engine.submit(taskConfig) → JobHandle
-5. 序列化 JobHandle 到 task.jobHandleJson
+4. engine.submit(taskConfig) → JobHandle（含 internalId = XXL-JOB jobId）
+5. 序列化 JobHandle（Spring ObjectMapper Bean，含 JavaTimeModule）到 task.jobHandleJson
 6. 状态机: READY → RUNNING
+```
+
+**DataX 引擎 start 细节：**
+```
+engine.submit(taskConfig)
+  → XxlJobAdminClient.findOrCreateJob("DataX-{taskName}", "dataxSync", taskId, cron)
+  → POST /jobinfo/add（创建 XXL-JOB 任务）
+  → POST /jobinfo/trigger（立即触发执行）
+  → 返回 JobHandle{ internalId = xxlJobId }
+```
+
+**getStatus 流程（status 查询 + 终态同步）：**
+```
+1. 反序列化 task.jobHandleJson → JobHandle
+2. engine.getStatus(handle)
+   → DataXEngine: XxlJobAdminClient.getLastLog(xxlJobId)
+   → GET /joblog/pageList?jobGroup=1&jobId={xxlJobId}&logStatus=-1
+   → 解析 handleCode: 200→FINISHED, 500→FAILED, 0→RUNNING
+3. 若 FINISHED/FAILED → 自动更新 task.status 到 DB
 ```
 
 **stop 流程：**

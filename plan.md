@@ -50,9 +50,11 @@
 | Canal | MySQL binlog实时解析 | MySQL CDC实时增量采集 |
 | Flink CDC 3.x | 全量+增量一体化 | MySQL/PostgreSQL实时CDC，需要exactly-once语义 |
 | DataX | 离线批量同步 | 全量初始化、定时批量迁移、异构数据源同步 |
-| 消息队列 | Apache Kafka 3.7（KRaft模式） | Canal输出通道 + Flink CDC中间缓冲 |
+| 消息队列 | Apache Kafka 3.9（KRaft模式） | Canal输出通道 + Flink CDC中间缓冲 |
+| 任务调度 | XXL-JOB 2.4.0 | DataX 任务调度、执行日志、失败重试，替代自建 Agent |
 
 > **设计要点**：每种引擎实现统一接口 `SyncEngine`，各自负责启动/停止/监控。任务配置中通过 `engineType` 字段指定使用哪种引擎，新增引擎只需实现接口即可。
+> **DataX 调度**：DataX 引擎通过 `XxlJobAdminClient`（REST API 客户端，cookie 认证）调用 XXL-JOB Admin 创建/触发/查询任务。`relake-job-agent` 模块作为 XXL-JOB Executor 运行，内嵌 DataX 执行环境，通过 `@XxlJob("dataxSync")` Handler 接收调度请求。
 
 ### 2.3 数据湖存储
 
@@ -75,13 +77,16 @@
 ### 2.5 基础设施（Docker Compose）
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Nacos 2.3   │  Kafka 3.7   │  MinIO   │ Flink  │
-│  (8848)      │  (9092)      │  (9000)  │(8081)  │
-├──────────────┴──────────────┴──────────┴────────┤
-│  MySQL(source) │ MySQL(metadata) │ StarRocks     │
-│  (3307)        │ (3306)          │ (9030)        │
-└──────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│  Nacos 2.3   │  Kafka 3.9   │  MinIO    │ XXL-JOB Admin       │
+│  (8848)      │  (9092)      │  (9000)   │ (8086)              │
+├──────────────┴──────────────┴───────────┴─────────────────────┤
+│  MySQL(source) │ MySQL(metadata) │ MySQL(xxl-job) │ Canal Srv  │
+│  (3307)        │ (3306)          │ (3308)         │ (11111)    │
+├───────────────────────────────────────────────────────────────┤
+│  Job Agent (XXL-JOB Executor / DataX Runner)                  │
+│  (8085)                                                       │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -92,25 +97,30 @@
 relake/
 ├── pom.xml                          # 根POM（依赖管理）
 ├── docker-compose.yml               # 基础设施容器编排
-├── docker/                          # Flink CDC connector JAR目录
+├── docker/                          # 初始化SQL、Dockerfile
 ├── relake-common/                   # 公共模块（DTO、异常、工具类）
 ├── relake-gateway/                  # API网关（Spring Cloud Gateway + JWT）
 ├── relake-metadata/                 # 元数据管理服务
 │   ├── 数据源连接管理 (CRUD)
 │   ├── 目标存储配置 (CRUD)
 │   ├── Schema发现与管理
-│   └── 任务配置持久化
+│   └── 密码 AES 加解密
 ├── relake-integration/              # 数据集成服务（核心）
 │   ├── 引擎无关的同步任务管理（策略模式）
 │   ├── SyncEngine接口 + Canal/FlinkCDC/DataX实现
-│   ├── 任务状态机管理（DRAFT → RUNNING → FAILED/STOPPED）
-│   └── 引擎选择与调度
+│   ├── 任务状态机管理（DRAFT → RUNNING → FINISHED/FAILED/STOPPED）
+│   ├── 引擎状态同步（查询时自动回写任务状态）
+│   └── Internal API（DataX配置下发）
 ├── relake-executor/                 # 任务执行器
-│   ├── CanalClient（binlog订阅、位点管理）
-│   ├── FlinkJobSubmitter（Flink SQL Gateway REST封装）
-│   ├── DataXExecutor（DataX JSON配置生成与运行）
-│   └── 统一的JobRunner调度器
-└── relake-web/                      # 前端项目（Vue3 + Vben Admin + Element Plus）
+│   ├── CanalEngine（binlog订阅、位点管理）
+│   ├── FlinkCdcEngine（Flink SQL Gateway REST封装）
+│   ├── DataXEngine（XXL-JOB Admin REST客户端 + 状态映射）
+│   └── XxlJobAdminClient（cookie认证、自动重登录）
+├── relake-job-agent/                # DataX 执行代理（XXL-JOB Executor）
+│   ├── XxlJobConfig（XxlJobSpringExecutor Bean）
+│   ├── DataXJobHandler（@XxlJob("dataxSync") Handler）
+│   └── 内嵌 DataX Python 运行环境
+└── relake-web/                      # 前端项目（Vue3 + Element Plus + Vite）
 ```
 
 **服务通信架构：**
@@ -120,9 +130,12 @@ relake/
                      → Executor(8084)
 
 Integration → Executor（引擎路由）
-   ├────→ CanalClient → Kafka → Paimon Ingestion
-   ├────→ FlinkJobSubmitter → Flink SQL Gateway → Flink Job → Paimon Sink → MinIO
-   └────→ DataXExecutor → DataX JSON Job → Paimon/MinIO
+   ├────→ CanalEngine → Kafka → Paimon Ingestion
+   ├────→ FlinkCdcEngine → Flink SQL Gateway → Flink Job → Paimon Sink → MinIO
+   └────→ DataXEngine → XxlJobAdminClient → XXL-JOB Admin(8086) → Job Agent(8085)
+              ↑                                                        │
+              │                                             REST API   │ DataX 执行
+              └──────── 状态轮询 ──────────── XXL-JOB Admin ←──────────┘
 
 Integration → Metadata（获取/更新任务配置及Schema）
 ```
@@ -155,9 +168,16 @@ STOPPED ←── 任意状态（主动停止）
                                                        ↘ StarRocks外表（后续）
 ```
 
-**DataX路径（批量同步）：**
+**DataX路径（批量同步 — XXL-JOB 调度）：**
 ```
-源DB → DataX Reader → DataX Writer → 目标（可用于全量初始化Paimon表）
+用户点击启动 → Integration → DataXEngine → XxlJobAdminClient
+  1. POST /jobinfo/add      → XXL-JOB Admin 创建任务（cron = 0 0 2 * * ?）
+  2. POST /jobinfo/trigger   → XXL-JOB Admin 触发执行
+  3. XXL-JOB Admin → Job Agent(8085) → @XxlJob("dataxSync")
+  4. Handler 从 Integration Internal API 拉取 DataX JSON 配置
+  5. 执行 DataX Python 脚本，输出日志到 XXL-JOB
+  6. Integration 通过 GET /joblog/pageList 轮询 handleCode
+  7. handleCode=200 → 引擎状态 FINISHED → 回写任务状态 → 前端显示"已完成"
 ```
 
 ### 4.3 引擎策略抽象
@@ -193,45 +213,55 @@ public interface SyncEngine {
 
 ## 五、分阶段实施计划
 
-### Phase 1：基础设施搭建
-- [ ] 编写 `docker-compose.yml`：Nacos、Kafka(KRaft)、MinIO、MySQL×2、Canal Server
-- [ ] Flink Session Cluster（可选，Flink CDC引擎需要时启用）
-- [ ] 验证所有容器正常启动、网络互通
+### Phase 1：基础设施搭建 ✅
+- [x] 编写 `docker-compose.yml`：Nacos、Kafka(KRaft)、MinIO、MySQL×3、Canal Server
+- [x] XXL-JOB Admin（任务调度中心）+ XXL-JOB MySQL
+- [x] Job Agent（XXL-JOB Executor，内嵌 DataX 运行环境）
+- [x] 验证所有容器正常启动、网络互通
 
-### Phase 2：项目脚手架 + 公共模块
-- [ ] 创建Maven多模块项目 `pom.xml`
-- [ ] `relake-common`：统一响应体 `R<T>`、全局异常处理 `GlobalExceptionHandler`、基础工具类
-- [ ] Nacos共享配置注册（数据库连接、公共参数）
+### Phase 2：项目脚手架 + 公共模块 ✅
+- [x] 创建Maven多模块项目 `pom.xml`
+- [x] `relake-common`：统一响应体 `R<T>`、全局异常处理 `GlobalExceptionHandler`、基础工具类
+- [x] Nacos共享配置注册（数据库连接、公共参数）
 
-### Phase 3：网关服务
-- [ ] Spring Cloud Gateway 路由配置
-- [ ] JWT令牌生成与网关层验证
-- [ ] 跨域配置
+### Phase 3：网关服务 ✅
+- [x] Spring Cloud Gateway 路由配置
+- [x] JWT令牌生成与网关层验证
+- [x] 跨域配置
 
-### Phase 4：元数据管理服务
-- [ ] 数据源连接管理（MySQL/PostgreSQL CRUD + 连接测试）
-- [ ] 目标存储配置管理（MinIO + Paimon配置）
-- [ ] Schema发现：连接源库获取表结构
-- [ ] REST API + MyBatis-Plus + MySQL存储
+### Phase 4：元数据管理服务 ✅
+- [x] 数据源连接管理（MySQL/PostgreSQL CRUD + 连接测试）
+- [x] 目标存储配置管理（MinIO + Paimon配置）
+- [x] Schema发现：连接源库获取表结构
+- [x] REST API + MyBatis-Plus + MySQL存储
 
 ### Phase 5：集成服务 + 执行器（多引擎）
-- [ ] `relake-executor`：`SyncEngine`接口定义 + CanalClient实现
-- [ ] `relake-executor`：FlinkJobSubmitter（Flink SQL Gateway REST封装）
-- [ ] `relake-executor`：DataXExecutor（DataX任务配置生成与执行）
-- [ ] `relake-integration`：统一任务管理（CRUD + 引擎路由 + 状态机）
-- [ ] 任务启动/停止/监控（支持多引擎切换）
+- [x] `relake-executor`：`SyncEngine`接口定义 + CanalEngine 实现
+- [x] `relake-executor`：FlinkCdcEngine（Flink SQL Gateway REST封装）
+- [x] `relake-executor`：DataXEngine（XXL-JOB Admin REST 客户端 + 状态映射）
+- [x] `relake-integration`：统一任务管理（CRUD + 引擎路由 + 状态机）
+- [x] 任务启动/停止/监控（支持多引擎切换）
+- [x] 引擎终态自动同步任务状态（FINISHED/FAILED → DB）
 
-### Phase 6：前端搭建
-- [ ] Vue3 + Vben Admin (v5) 项目初始化
-- [ ] 数据源管理页面（增删改查 + 连接测试）
-- [ ] 任务管理页面（创建/启动/停止/监控，含引擎选择）
+### Phase 6：前端搭建 ✅
+- [x] Vue3 + Element Plus + Vite 项目初始化
+- [x] 数据源管理页面（增删改查 + 连接测试）
+- [x] 任务管理页面（创建/启动/停止/监控，含引擎选择）
 
-### Phase 7：端到端联调
+### Phase 7：端到端联调（进行中）
 - [ ] Canal路径：MySQL CDC → Canal → Kafka → CanalClient → Paimon表 → MinIO
 - [ ] Flink CDC路径：MySQL → Flink CDC → Paimon Sink → MinIO
-- [ ] DataX路径：MySQL全量同步 → Paimon表
+- [x] **DataX路径**：MySQL全量同步 → XXL-JOB 调度 → DataX 执行 → 状态回写
 - [ ] 前端发起不同引擎的同步任务，观察数据变化
 - [ ] 增量同步验证（源表INSERT/UPDATE/DELETE）
+
+### Phase 8：XXL-JOB 调度集成 ✅
+- [x] XXL-JOB Admin 容器化部署（2.4.0 + MySQL）
+- [x] `relake-job-agent`：XXL-JOB Executor（XxlJobSpringExecutor + DataX Handler）
+- [x] `DataXEngine`：XxlJobAdminClient REST 客户端（创建/触发/状态查询）
+- [x] Cookie 认证 + 自动重登录机制
+- [x] 任务终态同步（引擎 FINISHED/FAILED → 任务状态回写 DB）
+- [x] 前端状态弹窗 + 终态自动刷新列表
 
 ---
 
@@ -252,13 +282,16 @@ public interface SyncEngine {
 | 文件 | 说明 |
 |------|------|
 | `pom.xml` | 根Maven反应堆POM，定义所有模块、依赖版本 |
-| `docker-compose.yml` | 所有基础设施容器编排 |
+| `docker-compose.yml` | 所有基础设施容器编排（9个容器） |
+| `docker/xxl-job/init.sql` | XXL-JOB 2.4.0 数据库初始化脚本 |
 | `relake-common/.../R.java` | 统一响应体（所有服务共用） |
 | `relake-common/.../GlobalExceptionHandler.java` | 全局异常处理 |
+| `relake-common/.../dto/DataXConfigDTO.java` | DataX 配置共享 DTO |
 | `relake-gateway/.../GatewayApplication.java` | 网关启动类+路由配置 |
-| `relake-integration/.../SyncEngine.java` | 引擎抽象接口（策略模式核心） |
-| `relake-integration/.../TaskOrchestrator.java` | 任务编排核心逻辑（引擎路由） |
-| `relake-executor/.../CanalClient.java` | Canal引擎实现（binlog订阅消费） |
-| `relake-executor/.../FlinkJobSubmitter.java` | Flink CDC引擎实现（SQL Gateway REST客户端） |
-| `relake-executor/.../DataXExecutor.java` | DataX引擎实现（JSON配置生成与执行） |
-| `relake-web/` | Vue3 + Vben Admin 前端项目 |
+| `relake-integration/.../TaskOrchestrator.java` | 任务编排核心逻辑（引擎路由+状态同步） |
+| `relake-integration/.../InternalTaskController.java` | DataX 配置下发内部 API |
+| `relake-executor/.../engine/DataXEngine.java` | DataX引擎（XXL-JOB REST客户端+状态映射） |
+| `relake-executor/.../client/XxlJobAdminClient.java` | XXL-JOB Admin REST API客户端（cookie认证） |
+| `relake-job-agent/.../handler/DataXJobHandler.java` | XXL-JOB Handler（@XxlJob dataxSync） |
+| `relake-job-agent/.../config/XxlJobConfig.java` | XxlJobSpringExecutor Bean 配置 |
+| `relake-web/` | Vue3 + Element Plus + Vite 前端项目 |
