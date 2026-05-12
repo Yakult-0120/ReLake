@@ -79,6 +79,7 @@ public class SchemaController {
                             rs.getString("COLUMN_NAME"),
                             rs.getString("TYPE_NAME"),
                             rs.getInt("DATA_TYPE"),
+                            rs.getInt("COLUMN_SIZE"),
                             "YES".equals(rs.getString("IS_NULLABLE")),
                             pkColumns.contains(rs.getString("COLUMN_NAME")),
                             rs.getString("REMARKS")

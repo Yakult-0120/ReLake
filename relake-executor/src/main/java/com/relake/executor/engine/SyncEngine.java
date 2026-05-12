@@ -27,4 +27,9 @@ public interface SyncEngine {
 
     /** 获取 Job 运行指标 */
     Metrics getMetrics(JobHandle handle);
+
+    /** 获取 Job 运行日志（XXL-JOB DataX 完整输出） */
+    default String getLog(JobHandle handle) {
+        return null;
+    }
 }

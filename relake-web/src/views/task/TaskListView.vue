@@ -3,8 +3,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTasks, createTask, updateTask, deleteTask,
-  validateTask, startTask, stopTask, getTaskStatus, getTaskMetrics,
-  type Task, type Metrics,
+  validateTask, startTask, stopTask, getTaskStatus, getTaskLog,
+  type Task,
 } from '@/api/task'
 import { getDatasourceList, type Datasource } from '@/api/datasource'
 import { getTargetList, type Target } from '@/api/target'
@@ -38,8 +38,10 @@ const targets = ref<Target[]>([])
 
 const statusVisible = ref(false)
 const statusText = ref('')
-const metricsVisible = ref(false)
-const metrics = ref<Metrics>({ recordsIn: 0, recordsOut: 0, bytesIn: 0, bytesOut: 0, errorCount: 0, latencyMs: 0 })
+const logVisible = ref(false)
+const logContent = ref('')
+const logLoading = ref(false)
+const currentLogTask = ref('')
 
 function getStatusTag(status: string | undefined) {
   const map: Record<string, string> = {
@@ -199,7 +201,6 @@ async function handleCheckStatus(row: Task) {
     const res = await getTaskStatus(row.id!)
     statusText.value = res.data.data || 'UNKNOWN'
     statusVisible.value = true
-    // 引擎终态时自动刷新列表
     if (statusText.value === 'FINISHED' || statusText.value === 'FAILED') {
       fetchData()
     }
@@ -208,13 +209,17 @@ async function handleCheckStatus(row: Task) {
   }
 }
 
-async function handleCheckMetrics(row: Task) {
+async function handleViewLog(row: Task) {
+  logLoading.value = true
+  currentLogTask.value = row.name
   try {
-    const res = await getTaskMetrics(row.id!)
-    metrics.value = res.data.data
-    metricsVisible.value = true
+    const res = await getTaskLog(row.id!)
+    logContent.value = res.data.data || '(暂无日志)'
   } catch {
-    // handled
+    logContent.value = '(获取日志失败)'
+  } finally {
+    logLoading.value = false
+    logVisible.value = true
   }
 }
 
@@ -251,7 +256,7 @@ onMounted(() => {
       </div>
 
       <el-table :data="tableData" v-loading="loading" border stripe>
-        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="name" label="任务名称" width="160" />
         <el-table-column label="数据源" width="120">
           <template #default="{ row }">{{ getDatasourceName(row.datasourceId) }}</template>
@@ -264,7 +269,7 @@ onMounted(() => {
             <el-tag size="small">{{ row.engineType }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="getStatusTag(row.status)" size="small">
               {{ getStatusLabel(row.status) }}
@@ -272,10 +277,15 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="sourceTables" label="源表" width="160" show-overflow-tooltip />
-        <el-table-column prop="description" label="描述" min-width="140" show-overflow-tooltip />
-        <el-table-column label="操作" min-width="320" fixed="right">
+        <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="id" label="任务ID" width="170" show-overflow-tooltip>
           <template #default="{ row }">
-            <template v-if="row.status === 'DRAFT' || row.status === 'FAILED'">
+            <span style="font-family: monospace; font-size: 12px; color: var(--rl-text-placeholder)">{{ row.id }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" min-width="340" fixed="right">
+          <template #default="{ row }">
+            <template v-if="row.status === 'DRAFT'">
               <el-button size="small" link type="primary" @click="handleEdit(row)">编辑</el-button>
               <el-button size="small" link type="warning" @click="handleValidate(row)">校验</el-button>
               <el-button size="small" link type="danger" @click="handleDelete(row)">删除</el-button>
@@ -288,14 +298,26 @@ onMounted(() => {
             <template v-else-if="row.status === 'RUNNING'">
               <el-button size="small" link type="danger" @click="handleStop(row)">停止</el-button>
               <el-button size="small" link type="info" @click="handleCheckStatus(row)">查看状态</el-button>
-              <el-button size="small" link type="info" @click="handleCheckMetrics(row)">查看指标</el-button>
             </template>
             <template v-else-if="row.status === 'STOPPED'">
+              <el-button size="small" link type="success" @click="handleStart(row)">启动</el-button>
+              <el-button size="small" link type="info" @click="handleViewLog(row)">查看日志</el-button>
               <el-button size="small" link type="info" @click="handleCheckStatus(row)">查看状态</el-button>
               <el-button size="small" link type="danger" @click="handleDelete(row)">删除</el-button>
             </template>
+            <template v-else-if="row.status === 'FAILED'">
+              <el-button size="small" link type="primary" @click="handleEdit(row)">编辑</el-button>
+              <el-button size="small" link type="warning" @click="handleValidate(row)">校验</el-button>
+              <el-button size="small" link type="info" @click="handleViewLog(row)">查看日志</el-button>
+              <el-button size="small" link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
+            <template v-else-if="row.status === 'FINISHED'">
+              <el-button size="small" link type="success" @click="handleStart(row)">启动</el-button>
+              <el-button size="small" link type="info" @click="handleViewLog(row)">查看日志</el-button>
+              <el-button size="small" link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
             <template v-else>
-              <span style="color:#c0c4cc">-</span>
+              <span style="color: var(--rl-text-placeholder);">-</span>
             </template>
           </template>
         </el-table-column>
@@ -351,7 +373,7 @@ onMounted(() => {
             v-model="form.configJson"
             type="textarea"
             :rows="4"
-            placeholder='JSON 格式的引擎专属配置，如: {"parallelism": 2}'
+            placeholder='JSON 配置，DataX 可指定输出路径: {"outputPath": "/data/output"}'
           />
         </el-form-item>
         <el-form-item label="Cron 表达式" v-if="form.engineType === 'DATAX'">
@@ -376,30 +398,25 @@ onMounted(() => {
       />
     </el-dialog>
 
-    <!-- Metrics Dialog -->
-    <el-dialog v-model="metricsVisible" title="运行指标" width="480px">
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="输入记录">{{ metrics.recordsIn }}</el-descriptions-item>
-        <el-descriptions-item label="输出记录">{{ metrics.recordsOut }}</el-descriptions-item>
-        <el-descriptions-item label="输入字节">{{ metrics.bytesIn }}</el-descriptions-item>
-        <el-descriptions-item label="输出字节">{{ metrics.bytesOut }}</el-descriptions-item>
-        <el-descriptions-item label="错误数">{{ metrics.errorCount }}</el-descriptions-item>
-        <el-descriptions-item label="延迟(ms)">{{ metrics.latencyMs }}</el-descriptions-item>
-      </el-descriptions>
+    <!-- Log Dialog -->
+    <el-dialog v-model="logVisible" :title="`执行日志 - ${currentLogTask}`" width="760px">
+      <div v-loading="logLoading" style="min-height: 120px">
+        <pre v-if="logContent" class="log-content">{{ logContent }}</pre>
+        <el-empty v-else description="暂无日志" />
+      </div>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .page-container {
-  max-width: 1300px;
+  max-width: 1400px;
 }
 
 .page-title {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 16px;
-  color: #303133;
 }
 
 .toolbar {
@@ -407,5 +424,21 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.log-content {
+  background: var(--rl-bg-input);
+  color: var(--rl-text-regular);
+  border: 1px solid var(--rl-border-color);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  max-height: 500px;
+  overflow: auto;
+  white-space: pre-wrap;
+  tab-size: 4;
+  margin: 0;
 }
 </style>

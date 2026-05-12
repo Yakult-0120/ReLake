@@ -8,6 +8,7 @@ export interface LoginParams {
 export interface LoginResult {
   token: string
   username: string
+  displayName?: string
 }
 
 export interface LoginResponse {
@@ -18,5 +19,5 @@ export interface LoginResponse {
 }
 
 export function loginApi(params: LoginParams) {
-  return request.post<any, LoginResponse>('/api/v1/auth/login', params)
+  return request.post<any, any>('/api/v1/auth/login', params)
 }

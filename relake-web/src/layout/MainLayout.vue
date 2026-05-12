@@ -1,26 +1,28 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { RouterView, useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useAppStore } from '@/stores/app'
-import { Expand, Fold, HomeFilled } from '@element-plus/icons-vue'
+import { useThemeStore } from '@/stores/theme'
+import { SwitchButton, Sunny, Moon } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const appStore = useAppStore()
+const themeStore = useThemeStore()
 
-const menuItems = [
-  { path: '/dashboard', title: '仪表盘', icon: 'HomeFilled' },
-  { path: '/datasources', title: '数据源管理', icon: 'Coin' },
-  { path: '/targets', title: '目标存储管理', icon: 'FolderOpened' },
-  { path: '/schemas', title: 'Schema 浏览', icon: 'Grid' },
-  { path: '/tasks', title: '同步任务管理', icon: 'Connection' },
+const tabs = [
+  { key: 'home', path: '/home', label: '首页' },
+  { key: 'integration', path: '/integration', label: '数据集成' },
+  { key: 'kafka', path: '/kafka', label: 'Kafka 中心' },
 ]
 
-const activeMenu = computed(() => route.path)
+const activeModule = computed(() => {
+  if (route.path.startsWith('/integration')) return 'integration'
+  if (route.path.startsWith('/kafka')) return 'kafka'
+  return 'home'
+})
 
-function handleMenuSelect(path: string) {
+function goTo(path: string) {
   router.push(path)
 }
 
@@ -31,106 +33,154 @@ function handleLogout() {
 </script>
 
 <template>
-  <el-container class="full-height">
-    <el-aside :width="appStore.sidebarCollapsed ? '64px' : '220px'" class="layout-aside">
-      <div class="logo-area">
-        <span v-if="!appStore.sidebarCollapsed" class="logo-text">ReLake</span>
-        <span v-else class="logo-text-mini">R</span>
-      </div>
-      <el-menu
-        :default-active="activeMenu"
-        :collapse="appStore.sidebarCollapsed"
-        background-color="#304156"
-        text-color="#bfcbd9"
-        active-text-color="#409EFF"
-        @select="handleMenuSelect"
-      >
-        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.title }}</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-
-    <el-container>
-      <el-header class="layout-header">
-        <div class="header-left">
-          <el-button
-            text
-            @click="appStore.toggleSidebar()"
+  <div class="app-shell">
+    <!-- 顶部导航栏 -->
+    <header class="top-navbar">
+      <div class="nav-left">
+        <img src="/relake.svg" class="nav-logo" alt="ReLake" />
+        <span class="nav-brand">ReLake</span>
+        <div class="nav-tabs">
+          <div
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="nav-tab"
+            :class="{ active: activeModule === tab.key }"
+            @click="goTo(tab.path)"
           >
-            <el-icon :size="18"><Fold v-if="!appStore.sidebarCollapsed" /><Expand v-else /></el-icon>
-          </el-button>
+            {{ tab.label }}
+          </div>
         </div>
-        <div class="header-right">
-          <span class="username">{{ authStore.username }}</span>
-          <el-button type="danger" text @click="handleLogout">退出</el-button>
-        </div>
-      </el-header>
+      </div>
 
-      <el-main class="layout-main">
-        <RouterView />
-      </el-main>
-    </el-container>
-  </el-container>
+      <div class="nav-right">
+        <el-button text class="nav-btn theme-btn" @click="themeStore.toggleTheme()">
+          <el-icon :size="18"><Sunny v-if="themeStore.isDark" /><Moon v-else /></el-icon>
+        </el-button>
+        <span class="nav-user">{{ authStore.displayName || authStore.username }}</span>
+        <el-button text class="nav-logout" @click="handleLogout">
+          <el-icon :size="15"><SwitchButton /></el-icon>
+          <span>退出</span>
+        </el-button>
+      </div>
+    </header>
+
+    <!-- 内容区 -->
+    <main class="app-content">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style scoped>
-.layout-aside {
-  background-color: #304156;
-  overflow: hidden;
-  transition: width 0.3s;
-}
-
-.logo-area {
-  height: 60px;
+.app-shell {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-direction: column;
+  height: 100vh;
+  background: var(--rl-bg-primary);
 }
 
-.logo-text {
-  color: #fff;
-  font-size: 20px;
-  font-weight: bold;
-  letter-spacing: 2px;
-}
-
-.logo-text-mini {
-  color: #fff;
-  font-size: 24px;
-  font-weight: bold;
-}
-
-.layout-header {
+/* ====== 顶部导航栏 ====== */
+.top-navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #e6e6e6;
+  height: 52px;
   padding: 0 20px;
-  height: 60px;
+  background: var(--rl-bg-sidebar);
+  border-bottom: 1px solid var(--rl-border-color);
+  flex-shrink: 0;
 }
 
-.header-right {
+.nav-left {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.username {
-  color: #606266;
+.nav-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.nav-brand {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--rl-text-primary);
+  letter-spacing: 1px;
+  margin-right: 16px;
+}
+
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-tab {
+  padding: 6px 16px;
+  border-radius: 6px;
   font-size: 14px;
+  color: var(--rl-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.nav-tab:hover {
+  background: var(--rl-bg-card);
+  color: var(--rl-text-regular);
+}
+.nav-tab.active {
+  background: rgba(37, 99, 235, 0.12);
+  color: #60a5fa;
 }
 
-.layout-main {
-  background: #f0f2f5;
-  padding: 20px;
-  min-height: calc(100vh - 60px);
+/* ====== 右侧控件 ====== */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.el-menu {
-  border-right: none;
+.nav-btn {
+  color: var(--rl-text-secondary);
+}
+.nav-btn:hover {
+  color: var(--rl-text-regular);
+}
+
+.theme-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.theme-btn:hover {
+  background: var(--rl-bg-card);
+  color: #f59e0b;
+}
+
+.nav-user {
+  font-size: 13px;
+  color: var(--rl-text-secondary);
+}
+
+.nav-logout {
+  color: var(--rl-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+}
+.nav-logout:hover {
+  color: #f87171;
+}
+
+/* ====== 内容区 ====== */
+.app-content {
+  flex: 1;
+  overflow: hidden;
 }
 </style>

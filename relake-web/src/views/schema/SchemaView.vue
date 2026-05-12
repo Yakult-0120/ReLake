@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { getSchemaTables, getTableSchema, type SchemaTable, type SchemaColumn } from '@/api/schema'
 import { getDatasourceList, type Datasource } from '@/api/datasource'
 
@@ -15,7 +14,7 @@ const columnsLoading = ref(false)
 async function loadDatasources() {
   try {
     const res = await getDatasourceList()
-    datasources.value = res.data.data || []
+    datasources.value = (res as any).data?.data || []
   } catch {
     // handled
   }
@@ -26,7 +25,7 @@ async function loadTables() {
   loading.value = true
   try {
     const res = await getSchemaTables(selectedDsId.value)
-    tables.value = res.data.data || []
+    tables.value = (res as any).data?.data || []
   } catch {
     // handled
   } finally {
@@ -42,8 +41,9 @@ async function handleTableExpand(row: SchemaTable) {
   expaandedTable.value = row.tableName
   columnsLoading.value = true
   try {
-    const res = await getTableSchema(selectedDsId.value!, row.tableName)
-    columns.value = res.data.data?.columns || []
+    // getTableSchema 已将 ColumnInfo[] 映射为 R<SchemaColumn[]>
+    const columnsData = await getTableSchema(selectedDsId.value!, row.tableName)
+    columns.value = (columnsData as any).data || []
   } catch {
     columns.value = []
   } finally {
@@ -135,7 +135,6 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 16px;
-  color: #303133;
 }
 
 .toolbar {

@@ -91,4 +91,10 @@ public class TaskController {
     public R<Object> getMetrics(@PathVariable Long id) {
         return R.ok(taskService.getMetrics(id));
     }
+
+    /** 查询任务运行日志 */
+    @GetMapping("/{id}/log")
+    public R<String> getJobLog(@PathVariable Long id) {
+        return R.ok(taskService.getJobLog(id));
+    }
 }

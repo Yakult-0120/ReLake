@@ -15,4 +15,18 @@ public class DataXConfigDTO {
     private String workingDir;
     /** DataX JSON 任务配置内容 */
     private String jobJson;
+
+    // ──────── MinIO 上传信息（用于 DataX 完成后将 staging 文件上传至对象存储）────────
+    /** 目标存储类型 */
+    private String targetStorageType;
+    /** MinIO endpoint，如 http://minio:9000 */
+    private String minioEndpoint;
+    /** MinIO access key */
+    private String minioAccessKey;
+    /** MinIO secret key */
+    private String minioSecretKey;
+    /** MinIO bucket */
+    private String minioBucket;
+    /** staging 本地输出路径 */
+    private String stagingPath;
 }

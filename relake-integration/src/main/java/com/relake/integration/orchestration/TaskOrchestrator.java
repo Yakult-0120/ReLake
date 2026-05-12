@@ -210,6 +210,22 @@ public class TaskOrchestrator {
     }
 
     /**
+     * 获取任务运行日志
+     */
+    public String getLog(Task task) {
+        if (task.getJobHandleJson() == null) return null;
+        try {
+            EngineType engineType = EngineType.valueOf(task.getEngineType());
+            SyncEngine engine = engineFactory.getEngine(engineType);
+            JobHandle handle = deserializeJobHandle(task.getJobHandleJson());
+            return handle != null ? engine.getLog(handle) : null;
+        } catch (Exception e) {
+            log.warn("查询引擎日志异常: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 获取任务运行指标
      */
     public Metrics getMetrics(Task task) {

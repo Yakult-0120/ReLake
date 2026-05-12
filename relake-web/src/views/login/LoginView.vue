@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, Sunny, Moon } from '@element-plus/icons-vue'
 import { loginApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
+
+const isDark = computed(() => themeStore.isDark)
 
 const form = ref({
   username: 'admin',
@@ -24,10 +28,10 @@ async function handleLogin() {
   loading.value = true
   try {
     const res = await loginApi(form.value)
-    const { token, username } = res.data.data
-    authStore.setAuth(token, username)
+    const { token, username, displayName } = res.data.data
+    authStore.setAuth(token, username, displayName)
     ElMessage.success('登录成功')
-    router.push('/dashboard')
+    router.push('/home')
   } catch {
     // error handled in interceptor
   } finally {
@@ -37,21 +41,22 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="login-page">
+  <div class="login-page" :class="{ dark: isDark }">
     <!-- 背景装饰 -->
     <div class="bg-grid"></div>
     <div class="bg-glow"></div>
 
     <!-- 左侧：品牌 + 表单 -->
     <div class="login-left">
+      <!-- 主题切换 -->
+      <div class="theme-switch">
+        <el-button text @click="themeStore.toggleTheme()">
+          <el-icon :size="20"><Sunny v-if="isDark" /><Moon v-else /></el-icon>
+        </el-button>
+      </div>
+
       <div class="brand">
-        <svg class="logo" viewBox="0 0 40 40" fill="none">
-          <path d="M20 2 C6 2 2 12 2 20 C2 28 6 36 20 38 C34 36 38 28 38 20 C38 12 34 2 20 2Z" fill="#1e40af" opacity="0.5"/>
-          <path d="M20 5 C8 5 5 13 5 20 C5 27 8 34 20 36 C32 34 35 27 35 20 C35 13 32 5 20 5Z" fill="#3b82f6" opacity="0.35"/>
-          <path d="M20 8 C10 8 8 15 8 20 C8 25 10 32 20 34 C30 32 32 25 32 20 C32 15 30 8 20 8Z" fill="#60a5fa" opacity="0.6"/>
-          <path d="M6 19 Q13 16 20 19 Q27 22 34 19" stroke="#93c5fd" stroke-width="1" fill="none" opacity="0.5"/>
-          <path d="M6 24 Q13 21 20 24 Q27 27 34 24" stroke="#93c5fd" stroke-width="0.8" fill="none" opacity="0.3"/>
-        </svg>
+        <img src="/relake.svg" class="logo" alt="ReLake" />
         <h1 class="brand-name">ReLake</h1>
         <p class="brand-desc">实时数据湖平台</p>
       </div>
@@ -167,7 +172,7 @@ async function handleLogin() {
 .login-page {
   display: flex;
   height: 100vh;
-  background: #0a0e1a;
+  background: var(--rl-bg-secondary);
   position: relative;
   overflow: hidden;
   font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -177,10 +182,15 @@ async function handleLogin() {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
   background-size: 60px 60px;
   pointer-events: none;
+}
+.login-page.dark .bg-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
 }
 
 .bg-glow {
@@ -189,9 +199,21 @@ async function handleLogin() {
   right: 0;
   width: 800px;
   height: 800px;
-  background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37,99,235,0.04) 0%, transparent 70%);
   pointer-events: none;
 }
+.login-page.dark .bg-glow {
+  background: radial-gradient(circle, rgba(37,99,235,0.06) 0%, transparent 70%);
+}
+
+/* ========== 主题切换按钮 ========== */
+.theme-switch {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  color: var(--rl-text-secondary);
+}
+.theme-switch .el-button:hover { color: #f59e0b; }
 
 /* ========== 左侧 ========== */
 .login-left {
@@ -202,6 +224,7 @@ async function handleLogin() {
   justify-content: center;
   padding: 60px 72px;
   z-index: 2;
+  position: relative;
 }
 
 .brand {
@@ -228,14 +251,14 @@ async function handleLogin() {
 .brand-name {
   font-size: 34px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--rl-text-primary);
   margin: 0 0 4px;
   letter-spacing: -0.5px;
 }
 
 .brand-desc {
   font-size: 13px;
-  color: #475569;
+  color: var(--rl-text-placeholder);
   letter-spacing: 3px;
 }
 
@@ -246,13 +269,13 @@ async function handleLogin() {
 .form-title {
   font-size: 22px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--rl-text-primary);
   margin: 0 0 6px;
 }
 
 .form-sub {
   font-size: 13px;
-  color: #64748b;
+  color: var(--rl-text-secondary);
   margin: 0 0 36px;
 }
 
@@ -260,7 +283,8 @@ async function handleLogin() {
   margin-bottom: 18px;
 }
 
-:deep(.el-input__wrapper) {
+/* 输入框 — 暗色 */
+.login-page.dark :deep(.el-input__wrapper) {
   background: #111827;
   border: 1px solid #1f2937;
   border-radius: 8px;
@@ -268,11 +292,11 @@ async function handleLogin() {
   padding: 3px 12px;
   transition: border-color 0.2s;
 }
-:deep(.el-input__wrapper:hover) { border-color: #374151; }
-:deep(.el-input__wrapper.is-focus) { border-color: #2563eb; }
-:deep(.el-input__inner) { color: #e2e8f0; font-size: 14px; }
-:deep(.el-input__inner::placeholder) { color: #4b5563; }
-:deep(.el-input__prefix .el-icon) { color: #4b5563; }
+.login-page.dark :deep(.el-input__wrapper:hover) { border-color: #374151; }
+.login-page.dark :deep(.el-input__wrapper.is-focus) { border-color: #2563eb; }
+.login-page.dark :deep(.el-input__inner) { color: #e2e8f0; font-size: 14px; }
+.login-page.dark :deep(.el-input__inner::placeholder) { color: #4b5563; }
+.login-page.dark :deep(.el-input__prefix .el-icon) { color: #4b5563; }
 
 .submit-btn {
   width: 100%;
@@ -297,7 +321,7 @@ async function handleLogin() {
   text-align: center;
   margin-top: 28px;
   font-size: 12px;
-  color: #334155;
+  color: var(--rl-text-placeholder);
 }
 
 /* ========== 右侧 ========== */
@@ -308,6 +332,11 @@ async function handleLogin() {
   justify-content: center;
   position: relative;
   z-index: 1;
+  /* 暗色模式背景 */
+  background: transparent;
+}
+.login-page.dark .login-right {
+  background: transparent;
 }
 
 .visual {
@@ -320,6 +349,11 @@ async function handleLogin() {
   width: 380px;
   height: 380px;
 }
+
+/* SVG 图形在暗色模式下可见，亮色模式下降低不透明度 */
+.login-page:not(.dark) .hero-svg circle[fill]:not([fill^="url"]) { opacity: 0.06; }
+.login-page:not(.dark) .hero-svg ellipse:not(.ripple) { opacity: 0.08; }
+.login-page:not(.dark) .node-group { opacity: 0.25; }
 
 /* 波纹动画 */
 .ripple { animation: rippleExpand 3s ease-in-out infinite; }
@@ -377,7 +411,7 @@ async function handleLogin() {
 }
 
 .tagline {
-  color: #334155;
+  color: var(--rl-text-placeholder);
   font-size: 12px;
   letter-spacing: 4px;
   margin-top: 40px;

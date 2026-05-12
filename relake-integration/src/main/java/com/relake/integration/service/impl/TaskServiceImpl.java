@@ -172,4 +172,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
         Task task = getEntity(id);
         return orchestrator.getMetrics(task);
     }
+
+    @Override
+    public String getJobLog(Long id) {
+        Task task = getEntity(id);
+        return orchestrator.getLog(task);
+    }
 }

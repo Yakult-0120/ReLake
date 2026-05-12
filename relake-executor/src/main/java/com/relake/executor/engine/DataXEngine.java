@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,14 +125,37 @@ public class DataXEngine implements SyncEngine {
                 log.warn("DataX getStatus: getLastLog 返回 null, xxlJobId={}", xxlJobId);
                 return JobStatus.UNKNOWN;
             }
+            // 1. 调度失败（如执行器离线、地址为空）→ 直接 FAILED
+            if (logDTO.getTriggerCode() == 500) {
+                log.warn("DataX getStatus: 调度失败, xxlJobId={}, triggerMsg={}",
+                        xxlJobId, logDTO.getTriggerMsg());
+                return JobStatus.FAILED;
+            }
+            // 2. 调度成功，检查执行结果
             JobStatus status = mapHandleCode(logDTO.getHandleCode());
-            log.info("DataX getStatus: xxlJobId={}, handleCode={}, handleMsg={}, mappedStatus={}",
-                    xxlJobId, logDTO.getHandleCode(), logDTO.getHandleMsg(), status);
+            log.info("DataX getStatus: xxlJobId={}, triggerCode={}, handleCode={}, handleMsg={}, mappedStatus={}",
+                    xxlJobId, logDTO.getTriggerCode(), logDTO.getHandleCode(), logDTO.getHandleMsg(), status);
             return status;
         } catch (Exception e) {
             log.error("DataX getStatus 异常: internalId={}, error={}", handle.getInternalId(), e.getMessage(), e);
         }
         return JobStatus.UNKNOWN;
+    }
+
+    @Override
+    public String getLog(JobHandle handle) {
+        if (handle.getInternalId() == null) return null;
+        try {
+            int xxlJobId = Integer.parseInt(handle.getInternalId());
+            Integer logId = adminClient.getLastLogId(xxlJobId);
+            if (logId == null) return null;
+            String raw = adminClient.getJobLogContent(logId);
+            // 统一 Windows \r\n → \n，避免前端渲染异常
+            return raw != null ? raw.replace("\r\n", "\n") : null;
+        } catch (Exception e) {
+            log.warn("查询 DataX Job 日志异常: jobId={}, error={}", handle.getJobId(), e.getMessage());
+            return null;
+        }
     }
 
     @Override
@@ -175,6 +199,31 @@ public class DataXEngine implements SyncEngine {
         Map<String, Object> job = new LinkedHashMap<>();
 
         // Reader
+        Map<String, Object> reader = buildReader(config);
+
+        // Writer — 根据目标存储类型选择
+        Map<String, Object> writer = buildWriter(config);
+
+        // Content
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("reader", reader);
+        content.put("writer", writer);
+
+        // Setting
+        Map<String, Object> setting = buildSetting();
+
+        job.put("job", Map.of(
+                "content", List.of(content),
+                "setting", setting
+        ));
+
+        return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(job);
+    }
+
+    /**
+     * 构建 DataX Reader — 目前统一使用 mysqlreader
+     */
+    private Map<String, Object> buildReader(TaskConfig config) {
         Map<String, Object> reader = new LinkedHashMap<>();
         reader.put("name", "mysqlreader");
         Map<String, Object> readerParam = new LinkedHashMap<>();
@@ -191,33 +240,189 @@ public class DataXEngine implements SyncEngine {
         connection.put("table", config.getSourceTables());
         readerParam.put("connection", List.of(connection));
         reader.put("parameter", readerParam);
+        return reader;
+    }
 
-        // Writer
+    /**
+     * 根据目标存储类型构建 DataX Writer
+     */
+    private Map<String, Object> buildWriter(TaskConfig config) {
+        String storageType = config.getTargetStorageType();
+        if (storageType == null || storageType.isBlank()) {
+            log.warn("目标存储类型为空，使用 streamwriter（仅打印到标准输出）");
+            return buildStreamWriter();
+        }
+
+        return switch (storageType.toUpperCase()) {
+            case "MINIO", "S3" -> buildS3Writer(config);
+            case "HDFS" -> buildHdfsWriter(config);
+            case "FILE" -> buildFileWriter(config);
+            case "LOCAL" -> buildTxtFileWriter(config);
+            default -> {
+                log.warn("未知的目标存储类型: {}，使用 streamwriter（仅打印到标准输出）", storageType);
+                yield buildStreamWriter();
+            }
+        };
+    }
+
+    /**
+     * MinIO/S3 Writer — DataX 先写本地 staging，完成后由 Job Agent 通过 mc 上传至 MinIO
+     * <p>
+     * 不需要 hadoop-aws 依赖，更稳定可靠。
+     * staging 路径：/opt/datax/output/{taskId}/
+     */
+    private Map<String, Object> buildS3Writer(TaskConfig config) {
+        Map<String, Object> writer = new LinkedHashMap<>();
+        writer.put("name", "txtfilewriter");
+        Map<String, Object> writerParam = new LinkedHashMap<>();
+
+        // staging 路径供 mc 上传使用
+        String stagingPath = "/opt/datax/output/" + config.getTaskId();
+        writerParam.put("path", stagingPath);
+        writerParam.put("fileName", config.getTaskName());
+        writerParam.put("writeMode", "truncate");
+        writerParam.put("fieldDelimiter", "\t");
+        writerParam.put("encoding", "UTF-8");
+        writer.put("parameter", writerParam);
+
+        log.info("DataX Writer(MinIO staging): path={}, bucket={}, tables={}",
+                stagingPath, config.getTargetBucket(), config.getSourceTables());
+        return writer;
+    }
+
+    /**
+     * FILE Writer — 写入文件服务器指定路径
+     * <p>
+     * 使用 txtfilewriter 写入本地/挂载路径，路径由 endpoint(服务器IP) + bucket(目录) 组合。
+     * 路径优先级：configJson.outputPath > bucket > 默认 /opt/datax/output/{taskId}
+     */
+    private Map<String, Object> buildFileWriter(TaskConfig config) {
+        Map<String, Object> writer = new LinkedHashMap<>();
+        writer.put("name", "txtfilewriter");
+        Map<String, Object> writerParam = new LinkedHashMap<>();
+
+        // 路径：优先 configJson，其次用 bucket（目标路径），最后默认
+        String outputPath = parseOutputPath(config);
+        if (outputPath == null) {
+            String bucket = config.getTargetBucket();
+            if (bucket != null && !bucket.isBlank()) {
+                outputPath = bucket.endsWith("/") ? bucket + config.getTaskId() : bucket + "/" + config.getTaskId();
+            } else {
+                outputPath = "/opt/datax/output/" + config.getTaskId();
+            }
+        }
+
+        writerParam.put("path", outputPath);
+        writerParam.put("fileName", config.getTaskName());
+        writerParam.put("writeMode", "truncate");
+        writerParam.put("fieldDelimiter", "\t");
+        writerParam.put("encoding", "UTF-8");
+        writer.put("parameter", writerParam);
+
+        log.info("DataX Writer(FILE → txtfilewriter): server={}, path={}, tables={}",
+                config.getTargetEndpoint(), outputPath, config.getSourceTables());
+        return writer;
+    }
+
+    /**
+     * txtfilewriter — 写入本地文件（仅用于 LOCAL 目标存储）
+     */
+    private Map<String, Object> buildTxtFileWriter(TaskConfig config) {
+        Map<String, Object> writer = new LinkedHashMap<>();
+        writer.put("name", "txtfilewriter");
+        Map<String, Object> writerParam = new LinkedHashMap<>();
+        String outputPath = parseOutputPath(config);
+        if (outputPath == null) {
+            outputPath = "/opt/datax/output/" + config.getTaskId();
+        }
+        writerParam.put("path", outputPath);
+        writerParam.put("fileName", config.getTaskName());
+        writerParam.put("writeMode", "truncate");
+        writerParam.put("fieldDelimiter", "\t");
+        writerParam.put("encoding", "UTF-8");
+        writer.put("parameter", writerParam);
+
+        log.info("DataX Writer(txtfilewriter): path={}, tables={}", outputPath, config.getSourceTables());
+        return writer;
+    }
+
+    /**
+     * 从 configJson 中解析自定义 outputPath，形如 {"outputPath": "/data/output"}
+     */
+    @SuppressWarnings("unchecked")
+    private String parseOutputPath(TaskConfig config) {
+        String configJson = config.getConfigJson();
+        if (configJson == null || configJson.isBlank()) return null;
+        try {
+            Map<String, Object> custom = objectMapper.readValue(configJson, Map.class);
+            Object path = custom.get("outputPath");
+            return path != null ? path.toString() : null;
+        } catch (Exception e) {
+            log.debug("解析 configJson 中的 outputPath 失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 将 ColumnMeta 列表转为 hdfswriter 所需的 column 定义
+     */
+    private List<Map<String, String>> buildColumnDefs(TaskConfig config) {
+        List<Map<String, String>> columns = new ArrayList<>();
+        if (config.getSourceColumns() != null && !config.getSourceColumns().isEmpty()) {
+            for (ColumnMeta col : config.getSourceColumns()) {
+                columns.add(Map.of("name", col.getName(), "type", col.getType()));
+            }
+        }
+        return columns;
+    }
+
+    /**
+     * hdfswriter — 写入 HDFS
+     */
+    private Map<String, Object> buildHdfsWriter(TaskConfig config) {
+        Map<String, Object> writer = new LinkedHashMap<>();
+        writer.put("name", "hdfswriter");
+        Map<String, Object> writerParam = new LinkedHashMap<>();
+        writerParam.put("defaultFS", config.getTargetEndpoint());
+        String hdfsPath = "/" + (config.getTargetBucket() != null ? config.getTargetBucket() : "relake");
+        writerParam.put("path", hdfsPath);
+        writerParam.put("fileName", config.getTaskName());
+        writerParam.put("fileType", "orc");
+        writerParam.put("compress", "NONE");
+        writerParam.put("fieldDelimiter", "\u0001");
+        writerParam.put("haveKerberos", false);
+        writerParam.put("encoding", "UTF-8");
+        writerParam.put("writeMode", "append");
+        if (config.getSourceColumns() != null && !config.getSourceColumns().isEmpty()) {
+            writerParam.put("column", buildColumnDefs(config));
+        }
+        writer.put("parameter", writerParam);
+
+        log.info("DataX Writer(hdfswriter): defaultFS={}, path={}, tables={}",
+                config.getTargetEndpoint(), hdfsPath, config.getSourceTables());
+        return writer;
+    }
+
+    /**
+     * streamwriter — 打印到标准输出（调试/无目标存储时使用）
+     */
+    private Map<String, Object> buildStreamWriter() {
         Map<String, Object> writer = new LinkedHashMap<>();
         writer.put("name", "streamwriter");
         Map<String, Object> writerParam = new LinkedHashMap<>();
         writerParam.put("print", true);
         writer.put("parameter", writerParam);
+        return writer;
+    }
 
-        // Content
-        Map<String, Object> content = new LinkedHashMap<>();
-        content.put("reader", reader);
-        content.put("writer", writer);
-
-        // Setting
+    private Map<String, Object> buildSetting() {
         Map<String, Object> setting = new LinkedHashMap<>();
         Map<String, Object> speed = new LinkedHashMap<>();
         speed.put("channel", 3);
         speed.put("bytes", -1L);
         setting.put("speed", speed);
         setting.put("errorLimit", Map.of("record", 0, "percentage", 0.02));
-
-        job.put("job", Map.of(
-                "content", List.of(content),
-                "setting", setting
-        ));
-
-        return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(job);
+        return setting;
     }
 
     // ──────── 状态映射 ────────

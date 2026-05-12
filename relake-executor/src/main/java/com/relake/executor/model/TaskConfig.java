@@ -47,6 +47,9 @@ public class TaskConfig {
     /** 要同步的源表名列表 */
     private List<String> sourceTables;
 
+    /** 源表列元数据（用于 DataX hdfswriter column 定义） */
+    private List<ColumnMeta> sourceColumns;
+
     // ──────── 引擎专属配置 ────────
 
     /** 引擎专属配置（JSON 字符串） */

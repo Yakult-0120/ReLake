@@ -21,6 +21,7 @@ public class TableInfo {
         private String columnName;
         private String columnType;
         private Integer dataType;       // java.sql.Types
+        private Integer columnSize;     // 列长度
         private Boolean nullable;
         private Boolean primaryKey;
         private String comment;

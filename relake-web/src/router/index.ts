@@ -13,37 +13,56 @@ const router = createRouter({
     {
       path: '/',
       component: () => import('@/layout/MainLayout.vue'),
-      redirect: '/dashboard',
+      redirect: '/home',
       children: [
         {
-          path: 'dashboard',
-          name: 'dashboard',
-          component: () => import('@/views/dashboard/DashboardView.vue'),
-          meta: { title: '仪表盘' },
+          path: 'home',
+          name: 'home',
+          component: () => import('@/views/home/HomeView.vue'),
+          meta: { title: '首页' },
         },
         {
-          path: 'datasources',
-          name: 'datasources',
-          component: () => import('@/views/datasource/DatasourceListView.vue'),
-          meta: { title: '数据源管理' },
+          path: 'kafka',
+          name: 'kafka',
+          component: () => import('@/views/kafka/KafkaView.vue'),
+          meta: { title: 'Kafka 中心' },
         },
         {
-          path: 'targets',
-          name: 'targets',
-          component: () => import('@/views/target/TargetListView.vue'),
-          meta: { title: '目标存储管理' },
-        },
-        {
-          path: 'schemas',
-          name: 'schemas',
-          component: () => import('@/views/schema/SchemaView.vue'),
-          meta: { title: 'Schema 浏览' },
-        },
-        {
-          path: 'tasks',
-          name: 'tasks',
-          component: () => import('@/views/task/TaskListView.vue'),
-          meta: { title: '同步任务管理' },
+          path: 'integration',
+          component: () => import('@/layout/IntegrationLayout.vue'),
+          redirect: '/integration/dashboard',
+          children: [
+            {
+              path: 'dashboard',
+              name: 'dashboard',
+              component: () => import('@/views/dashboard/DashboardView.vue'),
+              meta: { title: '仪表盘' },
+            },
+            {
+              path: 'datasources',
+              name: 'datasources',
+              component: () => import('@/views/datasource/DatasourceListView.vue'),
+              meta: { title: '数据源管理' },
+            },
+            {
+              path: 'targets',
+              name: 'targets',
+              component: () => import('@/views/target/TargetListView.vue'),
+              meta: { title: '目标存储管理' },
+            },
+            {
+              path: 'schemas',
+              name: 'schemas',
+              component: () => import('@/views/schema/SchemaView.vue'),
+              meta: { title: 'Schema 浏览' },
+            },
+            {
+              path: 'tasks',
+              name: 'tasks',
+              component: () => import('@/views/task/TaskListView.vue'),
+              meta: { title: '同步任务管理' },
+            },
+          ],
         },
       ],
     },
@@ -56,7 +75,7 @@ router.beforeEach((to, _from, next) => {
 
   if (to.path === '/login') {
     if (authStore.isLoggedIn) {
-      next('/dashboard')
+      next('/home')
     } else {
       next()
     }

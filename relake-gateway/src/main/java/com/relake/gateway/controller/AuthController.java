@@ -27,6 +27,9 @@ public class AuthController {
     @Value("${relake.jwt.admin-password:admin}")
     private String adminPassword;
 
+    @Value("${relake.jwt.admin-display-name:超级管理员}")
+    private String adminDisplayName;
+
     /**
      * 登录 — 使用内置管理员账号（凭据可通过配置覆盖）
      */
@@ -46,6 +49,7 @@ public class AuthController {
         String token = jwtUtil.generateToken(1L, request.getUsername());
         log.info("用户 {} 登录成功", request.getUsername());
 
-        return R.ok(new LoginResponse(token, "Bearer", expirationMs / 1000));
+        return R.ok(new LoginResponse(token, "Bearer", expirationMs / 1000,
+                request.getUsername(), adminDisplayName));
     }
 }

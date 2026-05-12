@@ -40,4 +40,7 @@ public interface TaskService extends IService<Task> {
 
     /** 获取任务运行指标 */
     Object getMetrics(Long id);
+
+    /** 获取任务运行日志 */
+    String getJobLog(Long id);
 }

@@ -230,7 +230,6 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 16px;
-  color: #303133;
 }
 
 .toolbar {

@@ -75,3 +75,7 @@ export function getTaskStatus(id: string | number) {
 export function getTaskMetrics(id: string | number) {
   return request.get<any, R<Metrics>>(`/api/v1/tasks/${id}/metrics`)
 }
+
+export function getTaskLog(id: string | number) {
+  return request.get<any, R<string>>(`/api/v1/tasks/${id}/log`)
+}
