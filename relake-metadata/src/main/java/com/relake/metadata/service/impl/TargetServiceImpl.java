@@ -98,11 +98,14 @@ public class TargetServiceImpl extends ServiceImpl<TargetMapper, Target>
     }
 
     @Override
-    public Page<TargetVO> page(int page, int size, String keyword) {
+    public Page<TargetVO> page(int page, int size, String keyword, String storageType) {
         LambdaQueryWrapper<Target> wrapper = new LambdaQueryWrapper<>();
         if (keyword != null && !keyword.isBlank()) {
-            wrapper.like(Target::getName, keyword)
-                   .or().like(Target::getEndpoint, keyword);
+            wrapper.and(w -> w.like(Target::getName, keyword)
+                    .or().like(Target::getEndpoint, keyword));
+        }
+        if (storageType != null && !storageType.isBlank()) {
+            wrapper.eq(Target::getStorageType, storageType.toUpperCase());
         }
         wrapper.orderByDesc(Target::getCreateTime);
 
@@ -146,6 +149,7 @@ public class TargetServiceImpl extends ServiceImpl<TargetMapper, Target>
                 case "MINIO", "S3" -> testMinioConnection(t);
                 case "FILE" -> testFileConnection(t);
                 case "HDFS" -> testHdfsConnection(t);
+                case "KAFKA" -> testKafkaConnection(t);
                 default -> {
                     log.warn("未知的目标存储类型: {}, 降级为 MinIO 健康检查", storageType);
                     testMinioConnection(t);
@@ -217,6 +221,30 @@ public class TargetServiceImpl extends ServiceImpl<TargetMapper, Target>
         // 所有端口都不通，验证主机名至少能解析
         java.net.InetAddress.getByName(host);
         log.info("FILE 服务器主机名可解析: host={}，未发现可连接的常用端口（已尝试 445/SMB 22/SSH 139/NetBIOS），视为可达", host);
+    }
+
+    /** Kafka — 尝试 TCP Socket 连接到 Broker 端口（默认 9092） */
+    private void testKafkaConnection(Target t) throws Exception {
+        String endpoint = t.getEndpoint();
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "Kafka Bootstrap Servers 不能为空");
+        }
+
+        String host;
+        int port;
+        if (endpoint.contains(":")) {
+            String[] parts = endpoint.split(":");
+            host = parts[0].trim();
+            port = Integer.parseInt(parts[1].trim());
+        } else {
+            host = endpoint.trim();
+            port = 9092;
+        }
+
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), 3000);
+            log.info("Kafka Broker 可达: host={}, port={}", host, port);
+        }
     }
 
     /** HDFS — 尝试 TCP Socket 连接到 NameNode RPC 端口 */

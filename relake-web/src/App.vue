@@ -107,7 +107,16 @@ html.dark .el-input__inner::placeholder { color: #4b5563 !important; }
 html.dark .el-input-number .el-input__wrapper { background: #0c1021 !important; }
 html.dark .el-textarea__inner { background: #0c1021 !important; border-color: #1a1f35 !important; color: #e2e8f0 !important; }
 html.dark .el-textarea__inner::placeholder { color: #4b5563 !important; }
-html.dark .el-select .el-input__wrapper { background: #0c1021 !important; }
+/* Select — 与 input 保持一致的暗色风格 */
+html.dark .el-select .el-input__wrapper {
+  background: #0c1021 !important;
+  border: 1px solid #1a1f35 !important;
+  box-shadow: none !important;
+}
+html.dark .el-select .el-input__wrapper:hover { border-color: #374151 !important; }
+html.dark .el-select .el-input__wrapper.is-focus { border-color: #2563eb !important; }
+html.dark .el-select .el-input__inner { color: #e2e8f0 !important; }
+html.dark .el-select .el-input__inner::placeholder { color: #4b5563 !important; }
 html.dark .el-select-dropdown { background: #111627 !important; border-color: #1a1f35 !important; }
 html.dark .el-select-dropdown__item { color: #8492a6 !important; }
 html.dark .el-select-dropdown__item.hover { background: #161b2e !important; color: #c0c8d8 !important; }

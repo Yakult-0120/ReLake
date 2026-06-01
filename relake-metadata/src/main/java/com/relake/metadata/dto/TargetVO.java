@@ -1,5 +1,6 @@
 package com.relake.metadata.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -10,6 +11,8 @@ import java.time.LocalDateTime;
 @Data
 public class TargetVO {
 
+    /** 雪花算法 Long ID，序列化为字符串避免 JS 精度丢失 */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long id;
     private String name;
     private String storageType;

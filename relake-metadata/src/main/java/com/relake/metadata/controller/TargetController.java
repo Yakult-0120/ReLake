@@ -42,8 +42,9 @@ public class TargetController {
     public R<Page<TargetVO>> page(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String keyword) {
-        return R.ok(targetService.page(page, size, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String storageType) {
+        return R.ok(targetService.page(page, size, keyword, storageType));
     }
 
     @GetMapping("/list")

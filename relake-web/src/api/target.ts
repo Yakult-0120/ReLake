@@ -21,7 +21,7 @@ export interface PageResult<T> {
   current: number
 }
 
-export function getTargets(params: { page: number; size: number; keyword?: string }) {
+export function getTargets(params: { page: number; size: number; keyword?: string; storageType?: string }) {
   return request.get<any, R<PageResult<Target>>>('/api/v1/targets', { params })
 }
 

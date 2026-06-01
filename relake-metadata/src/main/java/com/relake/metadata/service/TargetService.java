@@ -20,7 +20,7 @@ public interface TargetService extends IService<Target> {
 
     TargetVO getByName(String name);
 
-    Page<TargetVO> page(int page, int size, String keyword);
+    Page<TargetVO> page(int page, int size, String keyword, String storageType);
 
     List<TargetVO> listAll();
 

@@ -55,6 +55,12 @@
             <groupId>com.relake</groupId>
             <artifactId>relake-common</artifactId>
         </dependency>
+
+        <!-- Kafka AdminClient -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

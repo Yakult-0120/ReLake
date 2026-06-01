@@ -258,6 +258,10 @@ public class DataXEngine implements SyncEngine {
             case "HDFS" -> buildHdfsWriter(config);
             case "FILE" -> buildFileWriter(config);
             case "LOCAL" -> buildTxtFileWriter(config);
+            case "KAFKA" -> {
+                log.warn("KAFKA 类型目标存储暂不支持 DataX 同步，任务将仅打印到标准输出");
+                yield buildStreamWriter();
+            }
             default -> {
                 log.warn("未知的目标存储类型: {}，使用 streamwriter（仅打印到标准输出）", storageType);
                 yield buildStreamWriter();

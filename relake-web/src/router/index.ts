@@ -23,9 +23,28 @@ const router = createRouter({
         },
         {
           path: 'kafka',
-          name: 'kafka',
-          component: () => import('@/views/kafka/KafkaView.vue'),
-          meta: { title: 'Kafka 中心' },
+          component: () => import('@/layout/KafkaLayout.vue'),
+          redirect: '/kafka/topics',
+          children: [
+            {
+              path: 'topics',
+              name: 'topic-manager',
+              component: () => import('@/views/kafka/TopicList.vue'),
+              meta: { title: '主题管理' },
+            },
+            {
+              path: 'acls',
+              name: 'acl-manager',
+              component: () => import('@/views/kafka/AclList.vue'),
+              meta: { title: '权限管理' },
+            },
+            {
+              path: 'consumers',
+              name: 'consumer-manager',
+              component: () => import('@/views/kafka/ConsumerGroupList.vue'),
+              meta: { title: '消费者组' },
+            },
+          ],
         },
         {
           path: 'integration',
