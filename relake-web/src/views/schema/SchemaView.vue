@@ -75,7 +75,7 @@ onMounted(() => {
             :value="ds.id"
           />
         </el-select>
-        <span v-if="tables.length" style="color:#909399;margin-left:12px">
+        <span v-if="tables.length" class="table-count">
           共 {{ tables.length }} 张表
         </span>
       </div>
@@ -100,7 +100,7 @@ onMounted(() => {
               <el-table-column prop="isPrimaryKey" label="主键" width="80">
                 <template #default="{ row: col }">
                   <el-tag v-if="col.isPrimaryKey" type="warning" size="small">PK</el-tag>
-                  <span v-else style="color:#c0c4cc">-</span>
+                  <span v-else class="text-muted">-</span>
                 </template>
               </el-table-column>
               <el-table-column prop="columnComment" label="注释" min-width="200" show-overflow-tooltip />
@@ -131,16 +131,13 @@ onMounted(() => {
   max-width: 1200px;
 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 16px;
+.table-count {
+  color: var(--rl-text-secondary);
+  font-size: 13px;
+  margin-left: 12px;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
+.text-muted {
+  color: var(--rl-text-placeholder);
 }
 </style>

@@ -3,7 +3,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getDatasources, getDatasourceList, createDatasource, updateDatasource, deleteDatasource, testDatasource,
-  type Datasource, type PageResult,
+  type Datasource,
 } from '@/api/datasource'
 
 const loading = ref(false)
@@ -224,18 +224,5 @@ onMounted(() => {
 <style scoped>
 .page-container {
   max-width: 1200px;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
 }
 </style>

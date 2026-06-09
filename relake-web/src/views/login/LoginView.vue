@@ -105,13 +105,13 @@ async function handleLogin() {
         <svg viewBox="0 0 400 400" class="hero-svg">
           <defs>
             <radialGradient id="glow" cx="50%" cy="45%" r="50%">
-              <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.15" />
+              <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.15" />
               <stop offset="100%" stop-color="#0a0e1a" stop-opacity="0" />
             </radialGradient>
             <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="#3b82f6" stop-opacity="0" />
-              <stop offset="50%" stop-color="#60a5fa" stop-opacity="0.4" />
-              <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
+              <stop offset="0%" stop-color="#06b6d4" stop-opacity="0" />
+              <stop offset="50%" stop-color="#22d3ee" stop-opacity="0.4" />
+              <stop offset="100%" stop-color="#06b6d4" stop-opacity="0" />
             </linearGradient>
           </defs>
 
@@ -126,39 +126,39 @@ async function handleLogin() {
           <!-- 中心湖面 -->
           <ellipse cx="200" cy="178" rx="140" ry="42" fill="#1e3a5f" opacity="0.12"/>
           <ellipse cx="200" cy="178" rx="100" ry="30" fill="#1e40af" opacity="0.15"/>
-          <ellipse cx="200" cy="178" rx="60" ry="18" fill="#2563eb" opacity="0.2"/>
+          <ellipse cx="200" cy="178" rx="60" ry="18" fill="#0891b2" opacity="0.2"/>
 
           <!-- 波纹 -->
-          <ellipse cx="200" cy="176" rx="30" ry="9" fill="none" stroke="#60a5fa" stroke-width="1.2" class="ripple r1"/>
-          <ellipse cx="200" cy="180" rx="50" ry="15" fill="none" stroke="#60a5fa" stroke-width="0.8" class="ripple r2"/>
-          <ellipse cx="200" cy="174" rx="75" ry="23" fill="none" stroke="#60a5fa" stroke-width="0.5" class="ripple r3"/>
+          <ellipse cx="200" cy="176" rx="30" ry="9" fill="none" stroke="#22d3ee" stroke-width="1.2" class="ripple r1"/>
+          <ellipse cx="200" cy="180" rx="50" ry="15" fill="none" stroke="#22d3ee" stroke-width="0.8" class="ripple r2"/>
+          <ellipse cx="200" cy="174" rx="75" ry="23" fill="none" stroke="#22d3ee" stroke-width="0.5" class="ripple r3"/>
 
           <!-- 数据节点 -->
           <g class="node-group">
-            <circle cx="80" cy="120" r="3.5" fill="#60a5fa" opacity="0.7" class="node n1"/>
-            <circle cx="320" cy="120" r="3" fill="#60a5fa" opacity="0.6" class="node n2"/>
-            <circle cx="110" cy="240" r="2.5" fill="#93c5fd" opacity="0.5" class="node n3"/>
-            <circle cx="290" cy="240" r="3" fill="#93c5fd" opacity="0.6" class="node n4"/>
-            <circle cx="200" cy="100" r="3" fill="#3b82f6" opacity="0.7" class="node n5"/>
-            <circle cx="60" cy="180" r="2" fill="#3b82f6" opacity="0.4" class="node n6"/>
-            <circle cx="340" cy="180" r="2" fill="#3b82f6" opacity="0.4" class="node n7"/>
+            <circle cx="80" cy="120" r="3.5" fill="#22d3ee" opacity="0.7" class="node n1"/>
+            <circle cx="320" cy="120" r="3" fill="#22d3ee" opacity="0.6" class="node n2"/>
+            <circle cx="110" cy="240" r="2.5" fill="#67e8f9" opacity="0.5" class="node n3"/>
+            <circle cx="290" cy="240" r="3" fill="#67e8f9" opacity="0.6" class="node n4"/>
+            <circle cx="200" cy="100" r="3" fill="#06b6d4" opacity="0.7" class="node n5"/>
+            <circle cx="60" cy="180" r="2" fill="#06b6d4" opacity="0.4" class="node n6"/>
+            <circle cx="340" cy="180" r="2" fill="#06b6d4" opacity="0.4" class="node n7"/>
           </g>
 
           <!-- 数据连线 -->
           <g opacity="0.15">
-            <line x1="80" y1="120" x2="200" y2="178" stroke="#3b82f6" stroke-width="0.8" class="dline"/>
-            <line x1="320" y1="120" x2="200" y2="178" stroke="#3b82f6" stroke-width="0.8" class="dline"/>
-            <line x1="110" y1="240" x2="200" y2="178" stroke="#60a5fa" stroke-width="0.6" class="dline"/>
-            <line x1="290" y1="240" x2="200" y2="178" stroke="#60a5fa" stroke-width="0.6" class="dline"/>
-            <line x1="200" y1="100" x2="200" y2="178" stroke="#3b82f6" stroke-width="0.8" class="dline flex-line"/>
-            <line x1="60" y1="180" x2="80" y2="120" stroke="#93c5fd" stroke-width="0.5" class="dline"/>
-            <line x1="340" y1="180" x2="320" y2="120" stroke="#93c5fd" stroke-width="0.5" class="dline"/>
+            <line x1="80" y1="120" x2="200" y2="178" stroke="#06b6d4" stroke-width="0.8" class="dline"/>
+            <line x1="320" y1="120" x2="200" y2="178" stroke="#06b6d4" stroke-width="0.8" class="dline"/>
+            <line x1="110" y1="240" x2="200" y2="178" stroke="#22d3ee" stroke-width="0.6" class="dline"/>
+            <line x1="290" y1="240" x2="200" y2="178" stroke="#22d3ee" stroke-width="0.6" class="dline"/>
+            <line x1="200" y1="100" x2="200" y2="178" stroke="#06b6d4" stroke-width="0.8" class="dline flex-line"/>
+            <line x1="60" y1="180" x2="80" y2="120" stroke="#67e8f9" stroke-width="0.5" class="dline"/>
+            <line x1="340" y1="180" x2="320" y2="120" stroke="#67e8f9" stroke-width="0.5" class="dline"/>
           </g>
 
           <!-- 粒子流动点 -->
-          <circle r="2" fill="#93c5fd" opacity="0.8" class="flow-dot fd1"/>
-          <circle r="2" fill="#60a5fa" opacity="0.7" class="flow-dot fd2"/>
-          <circle r="1.5" fill="#93c5fd" opacity="0.6" class="flow-dot fd3"/>
+          <circle r="2" fill="#67e8f9" opacity="0.8" class="flow-dot fd1"/>
+          <circle r="2" fill="#22d3ee" opacity="0.7" class="flow-dot fd2"/>
+          <circle r="1.5" fill="#67e8f9" opacity="0.6" class="flow-dot fd3"/>
         </svg>
 
         <p class="tagline">CDC 采集 · 批量同步 · 湖仓一体</p>
@@ -175,7 +175,7 @@ async function handleLogin() {
   background: var(--rl-bg-secondary);
   position: relative;
   overflow: hidden;
-  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'DM Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .bg-grid {
@@ -253,7 +253,8 @@ async function handleLogin() {
   font-weight: 700;
   color: var(--rl-text-primary);
   margin: 0 0 4px;
-  letter-spacing: -0.5px;
+  letter-spacing: 2px;
+  font-family: 'Share Tech Mono', monospace;
 }
 
 .brand-desc {
@@ -293,7 +294,7 @@ async function handleLogin() {
   transition: border-color 0.2s;
 }
 .login-page.dark :deep(.el-input__wrapper:hover) { border-color: #374151; }
-.login-page.dark :deep(.el-input__wrapper.is-focus) { border-color: #2563eb; }
+.login-page.dark :deep(.el-input__wrapper.is-focus) { border-color: #0891b2; }
 .login-page.dark :deep(.el-input__inner) { color: #e2e8f0; font-size: 14px; }
 .login-page.dark :deep(.el-input__inner::placeholder) { color: #4b5563; }
 .login-page.dark :deep(.el-input__prefix .el-icon) { color: #4b5563; }
@@ -304,7 +305,7 @@ async function handleLogin() {
   margin-top: 4px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: linear-gradient(135deg, #0891b2, #0e7490);
   color: #fff;
   font-size: 15px;
   font-weight: 500;
@@ -312,9 +313,9 @@ async function handleLogin() {
   transition: all 0.25s;
 }
 .submit-btn:hover {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 24px rgba(8, 145, 178, 0.35);
 }
 
 .hint {

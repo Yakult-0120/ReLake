@@ -1,5 +1,7 @@
 package com.relake.metadata.service;
 
+import com.relake.common.web.BusinessException;
+import com.relake.common.web.ResultCode;
 import com.relake.metadata.entity.Target;
 import com.relake.metadata.util.AesUtil;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,9 @@ public class KafkaAdminClientFactory {
     public AdminClient getOrCreate(Long targetId) {
         Target target = targetService.getEntity(targetId);
         String currentEndpoint = target.getEndpoint();
+        if (currentEndpoint == null || currentEndpoint.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "Kafka endpoint 未配置: targetId=" + targetId);
+        }
         String cachedEndpoint = cachedEndpoints.get(targetId);
 
         // 如果 endpoint 变了（用户修改了配置），重建 AdminClient

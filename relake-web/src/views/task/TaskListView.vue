@@ -413,19 +413,6 @@ onMounted(() => {
   max-width: 1400px;
 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
 .log-content {
   background: var(--rl-bg-input);
   color: var(--rl-text-regular);

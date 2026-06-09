@@ -1,4 +1,5 @@
 import request, { type R } from './request'
+import type { PageResult } from './types'
 
 export interface Target {
   id?: string | number
@@ -12,13 +13,6 @@ export interface Target {
   description?: string
   createTime?: string
   updateTime?: string
-}
-
-export interface PageResult<T> {
-  records: T[]
-  total: number
-  size: number
-  current: number
 }
 
 export function getTargets(params: { page: number; size: number; keyword?: string; storageType?: string }) {

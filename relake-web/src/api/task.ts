@@ -1,4 +1,5 @@
 import request, { type R } from './request'
+import type { PageResult } from './types'
 
 export interface Task {
   id?: string | number
@@ -23,13 +24,6 @@ export interface Metrics {
   bytesOut: number
   errorCount: number
   latencyMs: number
-}
-
-export interface PageResult<T> {
-  records: T[]
-  total: number
-  size: number
-  current: number
 }
 
 export function getTasks(params: { page: number; size: number; keyword?: string }) {

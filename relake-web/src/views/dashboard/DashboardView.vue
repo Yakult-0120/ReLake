@@ -104,7 +104,14 @@ onMounted(() => {
 <style scoped>
 .dashboard { max-width: 1100px; }
 
-.page-title { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.05em;
+  color: var(--rl-text-primary);
+}
 
 /* 统计卡片 */
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
@@ -114,15 +121,20 @@ onMounted(() => {
   background: var(--rl-bg-card); border: 1px solid var(--rl-border-color); border-radius: 10px; padding: 20px;
   transition: border-color 0.2s;
 }
-.stat-card:hover { border-color: #2563eb; }
+.stat-card:hover { border-color: var(--rl-accent); }
 
 .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-.stat-icon.ds  { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.stat-icon.ds  { background: rgba(6, 182, 212, 0.12); color: var(--rl-accent); }
 .stat-icon.tg  { background: rgba(16, 185, 129, 0.12); color: #10b981; }
 .stat-icon.tk  { background: rgba(245, 158, 11, 0.12); color: #d97706; }
 .stat-icon.run { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
 
-.stat-value { font-size: 24px; font-weight: 700; color: var(--rl-text-primary); }
+.stat-value {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--rl-text-primary);
+  font-family: 'Share Tech Mono', monospace;
+}
 .stat-label { font-size: 13px; color: var(--rl-text-secondary); margin-top: 2px; }
 
 /* 介绍卡片 */
@@ -130,19 +142,21 @@ onMounted(() => {
   background: var(--rl-bg-card); border: 1px solid var(--rl-border-color); border-radius: 10px; padding: 28px;
 }
 
-.intro-header h3 { color: var(--rl-text-primary); font-size: 16px; margin: 0 0 8px; }
+.intro-header h3 { color: var(--rl-text-primary); font-size: 16px; margin: 0 0 8px; font-family: 'Share Tech Mono', monospace; letter-spacing: 0.05em; }
 .intro-header p  { color: var(--rl-text-secondary); font-size: 13px; margin: 0; }
 
 .engine-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
 
 .engine-item {
   background: var(--rl-bg-primary); border: 1px solid var(--rl-border-color); border-radius: 8px; padding: 18px;
+  transition: border-color 0.15s;
 }
+.engine-item:hover { border-color: var(--rl-accent); }
 
 .engine-badge {
   display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 4px; margin-bottom: 10px;
 }
-.engine-badge.canal { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.engine-badge.canal { background: rgba(6, 182, 212, 0.12); color: var(--rl-accent); }
 .engine-badge.flink { background: rgba(168, 85, 247, 0.12); color: #8b5cf6; }
 .engine-badge.datax { background: rgba(245, 158, 11, 0.12); color: #d97706; }
 

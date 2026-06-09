@@ -135,9 +135,6 @@ watch(refreshKey, () => { if (selectedTargetId.value) fetchGroups() })
 }
 
 .page-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--rl-text-primary);
   margin: 0;
 }
 

@@ -103,14 +103,6 @@ function handleLogout() {
   flex-shrink: 0;
 }
 
-.nav-brand {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--rl-text-primary);
-  letter-spacing: 1px;
-  margin-right: 16px;
-}
-
 .nav-tabs {
   display: flex;
   align-items: center;
@@ -131,8 +123,17 @@ function handleLogout() {
   color: var(--rl-text-regular);
 }
 .nav-tab.active {
-  background: rgba(37, 99, 235, 0.12);
-  color: #60a5fa;
+  background: rgba(6, 182, 212, 0.10);
+  color: var(--rl-accent-light);
+}
+
+.nav-brand {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--rl-text-primary);
+  letter-spacing: 1px;
+  margin-right: 16px;
+  font-family: 'Share Tech Mono', monospace;
 }
 
 /* ====== 右侧控件 ====== */

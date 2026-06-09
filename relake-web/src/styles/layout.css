@@ -1,0 +1,67 @@
+/* ====== 侧边栏布局 — IntegrationLayout & KafkaLayout 共享 ====== */
+
+.layout-root {
+  display: flex;
+  height: 100%;
+}
+
+/* 侧边栏 */
+.layout-aside {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  background: var(--rl-bg-sidebar);
+  border-right: 1px solid var(--rl-border-color);
+  transition: width 0.2s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.layout-aside.collapsed { width: 64px; }
+
+.aside-nav { flex: 1; padding: 8px; overflow-y: auto; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--rl-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.nav-item:hover { background: var(--rl-bg-card); color: var(--rl-text-regular); }
+.nav-item.active {
+  background: rgba(6, 182, 212, 0.10);
+  color: var(--rl-accent-light);
+  border-left: 2px solid var(--rl-accent);
+}
+.collapsed .nav-item { justify-content: center; padding: 0; border-left: none; }
+
+/* 顶栏（折叠按钮） */
+.layout-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.layout-topbar {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 20px;
+  background: var(--rl-bg-primary);
+  border-bottom: 1px solid var(--rl-border-color);
+  flex-shrink: 0;
+}
+
+.topbar-btn { color: var(--rl-text-secondary); }
+.topbar-btn:hover { color: var(--rl-text-regular); }
+
+/* 内容区 */
+.layout-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background: var(--rl-bg-primary);
+}

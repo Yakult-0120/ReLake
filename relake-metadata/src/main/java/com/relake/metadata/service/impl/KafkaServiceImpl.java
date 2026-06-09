@@ -112,7 +112,7 @@ public class KafkaServiceImpl implements KafkaService {
                     .collect(Collectors.toList());
         } catch (ExecutionException e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (msg.contains("authorizer") || msg.contains("not configured")) {
+            if (msg.toLowerCase().contains("authorizer") || msg.toLowerCase().contains("not configured")) {
                 log.info("listAcls: ACL 未启用，返回空列表: targetId={}", targetId);
                 return List.of();
             }
@@ -138,7 +138,15 @@ public class KafkaServiceImpl implements KafkaService {
                     request.getResourceName(), PatternType.LITERAL);
             client.createAcls(List.of(new AclBinding(pattern, entry))).all().get(10, TimeUnit.SECONDS);
             log.info("ACL created: targetId={}, principal={}", targetId, request.getPrincipal());
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (ExecutionException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.toLowerCase().contains("authorizer") || msg.toLowerCase().contains("not configured")) {
+                throw new BusinessException(ResultCode.BAD_REQUEST,
+                        "Kafka 未启用 ACL 授权，请在 broker 上配置 authorizer.class.name 后重试");
+            }
+            log.error("createAcl failed: targetId={}", targetId, e);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "创建ACL失败: " + msg);
+        } catch (InterruptedException | TimeoutException e) {
             log.error("createAcl failed: targetId={}", targetId, e);
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "创建ACL失败: " + e.getMessage());
         }
@@ -159,7 +167,15 @@ public class KafkaServiceImpl implements KafkaService {
             client.deleteAcls(List.of(new AclBindingFilter(patternFilter, entryFilter)))
                     .all().get(10, TimeUnit.SECONDS);
             log.info("ACL deleted: targetId={}, principal={}", targetId, request.getPrincipal());
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (ExecutionException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.toLowerCase().contains("authorizer") || msg.toLowerCase().contains("not configured")) {
+                throw new BusinessException(ResultCode.BAD_REQUEST,
+                        "Kafka 未启用 ACL 授权，请在 broker 上配置 authorizer.class.name 后重试");
+            }
+            log.error("deleteAcl failed: targetId={}", targetId, e);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "删除ACL失败: " + msg);
+        } catch (InterruptedException | TimeoutException e) {
             log.error("deleteAcl failed: targetId={}", targetId, e);
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "删除ACL失败: " + e.getMessage());
         }
@@ -176,7 +192,15 @@ public class KafkaServiceImpl implements KafkaService {
                     password);
             client.alterUserScramCredentials(List.of(alteration)).all().get(10, TimeUnit.SECONDS);
             log.info("SCRAM user created: targetId={}, username={}", targetId, username);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (ExecutionException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.toLowerCase().contains("not support") || msg.toLowerCase().contains("not configured") || msg.toLowerCase().contains("disabled")) {
+                throw new BusinessException(ResultCode.BAD_REQUEST,
+                        "Kafka 未启用 SCRAM 认证，请在 broker 上配置 SASL/SCRAM 后重试");
+            }
+            log.error("createScramUser failed: targetId={}, username={}", targetId, username, e);
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "创建SCRAM用户失败: " + msg);
+        } catch (InterruptedException | TimeoutException e) {
             log.error("createScramUser failed: targetId={}, username={}", targetId, username, e);
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "创建SCRAM用户失败: " + e.getMessage());
         }
